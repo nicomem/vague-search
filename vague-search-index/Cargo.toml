@@ -1,0 +1,10 @@
+[package]
+name = "vague-search-index"
+version = "0.1.0"
+authors = ["Nicolas Mémeint", "Tom Méchineau"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+vague-search-core = { path = "../vague-search-core" }
