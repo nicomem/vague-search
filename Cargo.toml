@@ -9,5 +9,9 @@ edition = "2018"
 [workspace]
 members = [".", "vague-search-core", "vague-search-index"]
 
+[profile.release]
+lto = "fat"
+panic = "abort"
+
 [dependencies]
 vague-search-core = { path = "./vague-search-core" }
