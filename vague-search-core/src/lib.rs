@@ -1,3 +1,5 @@
+mod data_file;
+
 #[cfg(test)]
 mod tests {
     #[test]
