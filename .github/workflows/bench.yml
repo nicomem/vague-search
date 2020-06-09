@@ -7,12 +7,12 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_BIN: cargo --locked --workspace --verbose
+  CARGO_BIN: cargo --locked --verbose
 
 jobs:
   bench:
     - name: Run benchmark
-      run: ${CARGO_BIN} bench | tee bench-output.txt
+      run: ${CARGO_BIN} bench --workspace | tee bench-output.txt
     - name: Process benchmark results
       uses: rhysd/github-action-benchmark@v1
       with:

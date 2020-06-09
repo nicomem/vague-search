@@ -8,7 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_BIN: cargo --locked --workspace --verbose
+  CARGO_BIN: cargo --locked --verbose
 
 jobs:
   build:
@@ -16,11 +16,11 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Build
-      run: ${CARGO_BIN} build
+      run: ${CARGO_BIN} build --workspace
     - name: Run tests
-      run: ${CARGO_BIN} test
+      run: ${CARGO_BIN} test --workspace
     - name: Run benchmark
-      run: ${CARGO_BIN} bench | tee bench-output.txt
+      run: ${CARGO_BIN} bench --workspace | tee bench-output.txt
     - name: Process benchmark results
       uses: rhysd/github-action-benchmark@v1
       with:
