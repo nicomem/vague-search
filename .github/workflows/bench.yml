@@ -1,23 +1,15 @@
-name: Rust
+name: Benchmark Github Pages
 
+# Must not run on pull requests if allowed to push github pages
 on:
   push:
-    branches: [ master ]
-  pull_request:
     branches: [ master ]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build
-      run: cargo build --workspace --verbose
-    - name: Run tests
-      run: cargo test --workspace --verbose
+  bench:
     - name: Run benchmark
       run: cargo bench --workspace | tee bench-output.txt
     - name: Process benchmark results
@@ -27,7 +19,8 @@ jobs:
         tool: 'cargo'
         output-file-path: bench-output.txt
         # Use personal access token instead of GITHUB_TOKEN due to https://github.community/t5/GitHub-Actions/Github-action-not-triggering-gh-pages-upon-push/td-p/26869/highlight/false
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+        github-token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+        auto-push: true
         # Show alert with commit comment on detecting possible performance regression
         alert-threshold: '130%'
         comment-on-alert: true
