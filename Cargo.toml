@@ -15,3 +15,10 @@ panic = "abort"
 
 [dependencies]
 vague-search-core = { path = "./vague-search-core" }
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "criterion_bench"
+harness = false
