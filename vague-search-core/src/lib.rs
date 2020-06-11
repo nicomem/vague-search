@@ -1,4 +1,6 @@
-mod data_file;
+mod compiled_trie;
+mod dictionary_file;
+mod error;
 
 #[cfg(test)]
 mod tests {
