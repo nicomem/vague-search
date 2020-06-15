@@ -1,17 +1,59 @@
 use crate::utils::AsBytes;
-use std::borrow::Cow;
+use std::{borrow::Cow, num::NonZeroU32};
+
+/// **TODO: Check size + reduce fields size**
+///
+/// A [CompiledTrie](CompiledTrie) node following a Patricia trie structure.
+#[derive(Debug, Clone)]
+pub struct PatriciaNode {
+    /// The number of siblings of the node.
+    /// The next sibling is located at the next index in the node array.
+    nb_siblings: usize,
+
+    /// The index of the first child in the node array.
+    index_first_child: usize,
+
+    /// The index of the first character in the characters array.
+    index_first_char: usize,
+
+    /// The number of characters associated to this node.
+    nb_chars: usize,
+
+    /// The word frequency. If None, the word does not exist in the dictionary.
+    word_freq: Option<NonZeroU32>,
+}
+
+/// **TODO: Check size + reduce fields size**
+///
+/// A [CompiledTrie](CompiledTrie) node following a naive trie structure.
+#[derive(Debug, Clone)]
+pub struct NaiveNode {
+    /// The number of siblings of the node.
+    /// The next sibling is located at the next index in the node array.
+    nb_siblings: usize,
+
+    /// The index of the first child in the node array.
+    index_first_child: usize,
+
+    /// The index of the first character in the characters array.
+    index_first_char: usize,
+
+    /// The character associated to this node.
+    character: char,
+}
 
 /// A node of a compiled trie.
-/// A node is defined as an enumeration for speed and memory optimization reasons:
-/// - PatriciaNode: More efficient to hold multiple-characters strings
-/// - SimpleNode: More efficient to hold one-character strings
+/// Can be of different structure depending on the situation to optimize
+/// memory consumption and execution speed.
 #[derive(Debug, Clone)]
 pub enum CompiledTrieNode {
-    /// Node following the structure of a PATRICIA trie
-    PatriciaNode(/* TODO */),
+    /// Node following the structure of a PATRICIA trie.
+    /// More efficient to hold multiple-characters strings
+    PatriciaNode(PatriciaNode),
 
-    /// Node following the structure of a naive trie
-    SimpleNode(/* TODO */),
+    /// Node following the structure of a naive trie.
+    /// More efficient to hold one-character strings.
+    NaiveNode(NaiveNode),
 }
 
 /// A trie data structure which has been optimized for size and speed.

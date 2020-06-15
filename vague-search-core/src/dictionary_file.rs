@@ -26,7 +26,7 @@ pub struct Header {
 /// without copying the entire file in memory.
 #[derive(Debug)]
 pub struct DictionaryFile<'a> {
-    mmap_ptr: *const u8,
+    mmap_ptr: *const libc::c_void,
     ptr_len: usize,
 
     pub header: Header,
@@ -54,9 +54,9 @@ impl DictionaryFile<'_> {
         )
     }
 
-    /// Read the structure from a file that have been written
-    /// with the mmap_save method.
-    /// In case of an error, return the corresponding POSIX error code.
+    /// Try to read the dictionary from a file, previously written using the
+    /// [write_file](DictionaryFile::write_file) method.
+    /// Uses mmap internally to reduce memory usage.
     pub fn read_file(path: &Path) -> Result<Self> {
         // Open the file and read its length
         let file: File = File::open(path).context(FileOpen { path })?;
@@ -75,11 +75,11 @@ impl DictionaryFile<'_> {
                 fd,
                 0,
             )
-        } as *const u8;
+        };
 
         // Return an error if mmap failed
         ensure!(
-            mmap_ptr != libc::MAP_FAILED as *const u8,
+            mmap_ptr != libc::MAP_FAILED,
             FileMmap {
                 path,
                 strerror: unsafe { strerror() }.unwrap_or("Unknown")
@@ -113,6 +113,9 @@ impl DictionaryFile<'_> {
         })
     }
 
+    /// Try to write the dictionary to a file.
+    /// The file contents is not portable and must be read using the
+    /// [read_file](DictionaryFile::read_file) method.
     pub fn write_file(&self, path: &Path) -> Result<()> {
         let mut file = OpenOptions::new()
             .write(true)
@@ -143,7 +146,7 @@ impl Drop for DictionaryFile<'_> {
     fn drop(&mut self) {
         // munmap the inner pointer if the struct was read from a file
         if self.mmap_ptr != std::ptr::null() {
-            unsafe { libc::munmap(self.mmap_ptr as *mut std::ffi::c_void, self.ptr_len) };
+            unsafe { libc::munmap(self.mmap_ptr as *mut libc::c_void, self.ptr_len) };
         }
     }
 }

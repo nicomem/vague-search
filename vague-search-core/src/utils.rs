@@ -4,7 +4,7 @@ pub trait AsBytes {
     /// **Warning notes:**
     /// - If the value contains a pointer or a reference,
     /// the address will be present, not the pointed value.
-    /// - This representation is not cross-machine compatible.
+    /// - This representation is not portable.
     unsafe fn as_bytes(&self) -> &[u8];
 }
 
