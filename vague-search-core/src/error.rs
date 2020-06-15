@@ -1,4 +1,4 @@
-use snafu::{ensure, Backtrace, ErrorCompat, ResultExt, Snafu};
+use snafu::Snafu;
 use std::path::PathBuf;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

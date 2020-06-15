@@ -2,6 +2,10 @@ mod compiled_trie;
 mod dictionary_file;
 mod error;
 
+pub use compiled_trie::{CompiledTrie, CompiledTrieNode};
+pub use dictionary_file::{DictionaryFile, Header};
+pub use error::{Error, Result};
+
 #[cfg(test)]
 mod tests {
     #[test]

@@ -112,7 +112,7 @@ impl DictionaryFile<'_> {
         })
     }
 
-    pub fn write_file(&self, path: &Path) -> Result<()> {
+    pub fn write_file(&self, _path: &Path) -> Result<()> {
         todo!("Open file descriptor and mmap write it")
     }
 }
@@ -127,7 +127,7 @@ impl Drop for DictionaryFile<'_> {
 }
 
 impl From<CompiledTrie<'_>> for DictionaryFile<'static> {
-    fn from(trie: CompiledTrie<'_>) -> Self {
+    fn from(_trie: CompiledTrie<'_>) -> Self {
         todo!("Create DictionaryFile from CompiledTrie")
     }
 }
