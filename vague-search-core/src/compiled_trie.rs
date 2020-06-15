@@ -1,3 +1,4 @@
+use crate::utils::AsBytes;
 use std::borrow::Cow;
 
 /// A node of a compiled trie.
@@ -37,6 +38,14 @@ impl CompiledTrie<'_> {
 
     pub fn chars_len(&self) -> usize {
         self.chars.len()
+    }
+
+    pub fn nodes_bytes(&self) -> &[u8] {
+        unsafe { self.nodes.as_bytes() }
+    }
+
+    pub fn chars_bytes(&self) -> &[u8] {
+        unsafe { self.chars.as_bytes() }
     }
 }
 

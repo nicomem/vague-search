@@ -1,6 +1,7 @@
 mod compiled_trie;
 mod dictionary_file;
 mod error;
+mod utils;
 
 pub use compiled_trie::{CompiledTrie, CompiledTrieNode};
 pub use dictionary_file::{DictionaryFile, Header};

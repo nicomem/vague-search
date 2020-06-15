@@ -18,4 +18,9 @@ pub enum Error {
     },
     #[snafu(display("Could not mmap file {}: {}", path.display(), strerror))]
     FileMmap { path: PathBuf, strerror: String },
+    #[snafu(display("Could not write in file {}: {}", path.display(), source))]
+    FileWrite {
+        path: PathBuf,
+        source: std::io::Error,
+    },
 }

@@ -1,10 +1,11 @@
-use crate::compiled_trie::*;
-use crate::error::*;
+use crate::{compiled_trie::*, error::*, utils::AsBytes};
 use snafu::{ensure, ResultExt};
-use std::os::unix::io::IntoRawFd;
 use std::{
     ffi::CStr,
-    fs::{File, Metadata},
+    fs::{File, Metadata, OpenOptions},
+    io::Write,
+    mem::size_of,
+    os::unix::io::IntoRawFd,
     path::Path,
 };
 
@@ -45,8 +46,8 @@ impl DictionaryFile<'_> {
     /// - Vec<Node>
     /// - Vec<char>
     fn get_offsets(header: &Header) -> (isize, isize) {
-        const HEADER_LEN: usize = std::mem::size_of::<Header>();
-        const NODE_LEN: usize = std::mem::size_of::<CompiledTrieNode>();
+        const HEADER_LEN: usize = size_of::<Header>();
+        const NODE_LEN: usize = size_of::<CompiledTrieNode>();
         (
             HEADER_LEN as isize,
             (HEADER_LEN + header.nb_nodes * NODE_LEN) as isize,
@@ -112,8 +113,29 @@ impl DictionaryFile<'_> {
         })
     }
 
-    pub fn write_file(&self, _path: &Path) -> Result<()> {
-        todo!("Open file descriptor and mmap write it")
+    pub fn write_file(&self, path: &Path) -> Result<()> {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .context(FileOpen { path })?;
+
+        // Write in the correct order:
+        // - Header
+        // - Nodes
+        // - Chars
+        let contents = [
+            unsafe { self.header.as_bytes() },
+            self.trie.nodes_bytes(),
+            self.trie.chars_bytes(),
+        ];
+
+        for bytes in &contents {
+            file.write_all(bytes).context(FileWrite { path })?;
+        }
+
+        Ok(())
     }
 }
 
