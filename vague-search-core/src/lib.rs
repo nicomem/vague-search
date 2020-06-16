@@ -2,14 +2,17 @@
 //!
 //! Define shared data structures and functions to be used in both binaries.
 
-mod compiled_trie;
 mod dictionary_file;
 mod error;
+mod trie;
 mod utils;
 
-pub use compiled_trie::{CompiledTrie, CompiledTrieNode, NaiveNode, PatriciaNode};
 pub use dictionary_file::{DictionaryFile, Header};
 pub use error::{Error, Result};
+pub use trie::{
+    compiled_trie::{CompiledTrie, IndexNode},
+    trie_node::{CompiledTrieNode, NaiveNode, PatriciaNode},
+};
 
 #[cfg(test)]
 mod tests {

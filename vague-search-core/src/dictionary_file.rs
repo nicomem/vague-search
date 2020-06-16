@@ -1,4 +1,8 @@
-use crate::{compiled_trie::*, error::*, utils::AsBytes};
+use crate::{
+    error::*,
+    utils::{as_bytes, AsBytes},
+    CompiledTrie, CompiledTrieNode,
+};
 use snafu::{ensure, ResultExt};
 use std::{
     ffi::CStr,
@@ -43,8 +47,8 @@ unsafe fn strerror() -> Option<&'static str> {
 
 impl DictionaryFile<'_> {
     /// Return the offsets of the inner data which is composed of:
-    /// - Vec<Node>
-    /// - Vec<char>
+    /// - `Vec<Node>`
+    /// - `Vec<char>`
     fn get_offsets(header: &Header) -> (isize, isize) {
         const HEADER_LEN: usize = size_of::<Header>();
         const NODE_LEN: usize = size_of::<CompiledTrieNode>();
@@ -129,9 +133,9 @@ impl DictionaryFile<'_> {
         // - Nodes
         // - Chars
         let contents = [
-            unsafe { self.header.as_bytes() },
-            self.trie.nodes_bytes(),
-            self.trie.chars_bytes(),
+            as_bytes(&self.header),
+            self.trie.nodes().as_bytes(),
+            self.trie.chars().as_bytes(),
         ];
 
         for bytes in &contents {
@@ -151,8 +155,19 @@ impl Drop for DictionaryFile<'_> {
     }
 }
 
-impl From<CompiledTrie<'_>> for DictionaryFile<'static> {
-    fn from(_trie: CompiledTrie<'_>) -> Self {
-        todo!("Create DictionaryFile from CompiledTrie")
+impl<'a> From<CompiledTrie<'a>> for DictionaryFile<'a> {
+    fn from(trie: CompiledTrie<'a>) -> Self {
+        let header = Header {
+            nb_nodes: trie.nodes().len(),
+            nb_chars: trie.chars().len(),
+        };
+
+        // Create a dictionary that is not mapped to a file
+        Self {
+            mmap_ptr: std::ptr::null(),
+            ptr_len: 0,
+            header,
+            trie,
+        }
     }
 }
