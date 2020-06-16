@@ -38,8 +38,21 @@ impl CompiledTrie<'_> {
 
     /// Get the node corresponding to the index.
     pub fn get_node(&self, index: IndexNode) -> &CompiledTrieNode {
-        // Safe because IndexNode inner value can only be set in this file
-        unsafe { self.nodes.get_unchecked(index.index as usize) }
+        // get_unchecked would not be safe because even though an IndexNode is always
+        // valid when it is used on the CompiledTrie that have genereated it,
+        // it can be invalid if used on another smaller trie.
+        &self.nodes[index.index as usize]
+    }
+
+    /// Get the character slice associated to the index node.
+    pub fn get_node_chars(&self, index: IndexNode) -> &[char] {
+        match self.get_node(index) {
+            CompiledTrieNode::NaiveNode(node) => std::slice::from_ref(&node.character),
+            CompiledTrieNode::PatriciaNode(node) => {
+                let usize_range = (node.char_range.start as usize)..(node.char_range.end as usize);
+                &self.chars[usize_range]
+            }
+        }
     }
 
     /// Get the index of the root node.
@@ -49,22 +62,15 @@ impl CompiledTrie<'_> {
 
     /// Get the index of the first children of the current index.
     pub fn index_child(&self, index: IndexNode) -> IndexNode {
-        let index = match self.get_node(index) {
-            CompiledTrieNode::NaiveNode(node) => node.index_first_child,
-            CompiledTrieNode::PatriciaNode(node) => node.index_first_child,
-        };
-        IndexNode { index }
+        IndexNode {
+            index: self.get_node(index).index_first_child(),
+        }
     }
 
     /// Try to get the index of a sibling of the current index.
     /// If the offset is out-of-bound, return None.
     pub fn index_sibling(&self, index: IndexNode, sibling_offset: u32) -> Option<IndexNode> {
-        let nb_siblings = match self.get_node(index) {
-            CompiledTrieNode::NaiveNode(node) => node.nb_siblings,
-            CompiledTrieNode::PatriciaNode(node) => node.nb_siblings,
-        };
-
-        if sibling_offset >= nb_siblings {
+        if sibling_offset >= self.get_node(index).nb_siblings() {
             None
         } else {
             Some(IndexNode {

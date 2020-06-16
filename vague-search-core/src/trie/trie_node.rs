@@ -13,11 +13,11 @@ pub struct PatriciaNode {
     /// The index of the first child in the node array.
     pub index_first_child: u32,
 
-    /// The range of characters associated to this node in the characters array.
-    pub char_range: Range<u32>,
-
     /// The word frequency. If None, the word does not exist in the dictionary.
     pub word_freq: Option<NonZeroU32>,
+
+    /// The range of characters associated to this node in the characters array.
+    pub char_range: Range<u32>,
 }
 
 /// **TODO: Check size + reduce fields size**
@@ -32,11 +32,11 @@ pub struct NaiveNode {
     /// The index of the first child in the node array.
     pub index_first_child: u32,
 
-    /// The character associated to this node.
-    pub character: char,
-
     /// The word frequency. If None, the word does not exist in the dictionary.
     pub word_freq: Option<NonZeroU32>,
+
+    /// The character associated to this node.
+    pub character: char,
 }
 
 /// A node of a compiled trie.
@@ -51,4 +51,23 @@ pub enum CompiledTrieNode {
     /// Node following the structure of a naive trie.
     /// More efficient to hold one-character strings.
     NaiveNode(NaiveNode),
+}
+
+// Implement getters for fields that are contained in all enumeration values.
+macro_rules! impl_get_field {
+    ($field:ident, $ret:ty) => {
+        /// Get the corresponding field of a node.
+        pub fn $field(&self) -> $ret {
+            match self {
+                Self::NaiveNode(node) => node.$field,
+                Self::PatriciaNode(node) => node.$field,
+            }
+        }
+    };
+}
+
+impl CompiledTrieNode {
+    impl_get_field!(nb_siblings, u32);
+    impl_get_field!(index_first_child, u32);
+    impl_get_field!(word_freq, Option<NonZeroU32>);
 }
