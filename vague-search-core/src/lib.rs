@@ -10,7 +10,8 @@ mod utils;
 pub use dictionary_file::{DictionaryFile, Header};
 pub use error::{Error, Result};
 pub use trie::{
-    compiled_trie::{CompiledTrie, IndexNode},
+    compiled_trie::CompiledTrie,
+    index::*,
     trie_node::{CompiledTrieNode, NaiveNode, PatriciaNode},
 };
 

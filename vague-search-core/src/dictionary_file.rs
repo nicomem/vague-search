@@ -1,5 +1,6 @@
 use crate::{
     error::*,
+    trie::index::RangeElement,
     utils::{as_bytes, AsBytes},
     CompiledTrie, CompiledTrieNode,
 };
@@ -19,6 +20,7 @@ use std::{
 pub struct Header {
     pub nb_nodes: usize,
     pub nb_chars: usize,
+    pub nb_ranges: usize,
 }
 
 /// The dictionary created by the index binary and saved in a file
@@ -49,13 +51,24 @@ impl DictionaryFile<'_> {
     /// Return the offsets of the inner data which is composed of:
     /// - `Vec<Node>`
     /// - `Vec<char>`
-    fn get_offsets(header: &Header) -> (isize, isize) {
+    /// - `Vec<RangeElement>`
+    unsafe fn get_offsets_ptr(
+        header: &Header,
+        ptr: *const libc::c_void,
+    ) -> (
+        *const libc::c_void,
+        *const libc::c_void,
+        *const libc::c_void,
+    ) {
         const HEADER_LEN: usize = size_of::<Header>();
         const NODE_LEN: usize = size_of::<CompiledTrieNode>();
-        (
-            HEADER_LEN as isize,
-            (HEADER_LEN + header.nb_nodes * NODE_LEN) as isize,
-        )
+        const CHAR_LEN: usize = size_of::<char>();
+
+        let nodes_ptr = ptr.offset(HEADER_LEN as isize);
+        let chars_ptr = nodes_ptr.offset((header.nb_nodes * NODE_LEN) as isize);
+        let ranges_ptr = chars_ptr.offset((header.nb_chars * CHAR_LEN) as isize);
+
+        (nodes_ptr, chars_ptr, ranges_ptr)
     }
 
     /// Try to read the dictionary from a file, previously written using the
@@ -94,19 +107,20 @@ impl DictionaryFile<'_> {
         let header = unsafe { *(mmap_ptr as *const Header) };
 
         // Type the compiled trie
-        let (nodes_offset, chars_offset) = Self::get_offsets(&header);
+
         let trie = unsafe {
-            // Type the nodes vector
-            let nodes_ptr = mmap_ptr.offset(nodes_offset);
+            // Get the offset pointers to each array
+            let (nodes_ptr, chars_ptr, ranges_ptr) = Self::get_offsets_ptr(&header, mmap_ptr);
+
+            // Type each array
             let nodes =
                 std::slice::from_raw_parts(nodes_ptr as *const CompiledTrieNode, header.nb_nodes);
-
-            // Type the chars vector
-            let chars_ptr = mmap_ptr.offset(chars_offset);
             let chars = std::slice::from_raw_parts(chars_ptr as *const char, header.nb_chars);
+            let ranges =
+                std::slice::from_raw_parts(ranges_ptr as *const RangeElement, header.nb_ranges);
 
             // Create a borrowing compiled trie
-            (nodes, chars).into()
+            CompiledTrie::from((nodes, chars, ranges))
         };
 
         Ok(Self {
@@ -132,10 +146,12 @@ impl DictionaryFile<'_> {
         // - Header
         // - Nodes
         // - Chars
+        // - Ranges
         let contents = [
             as_bytes(&self.header),
             self.trie.nodes().as_bytes(),
             self.trie.chars().as_bytes(),
+            self.trie.ranges().as_bytes(),
         ];
 
         for bytes in &contents {
@@ -160,6 +176,7 @@ impl<'a> From<CompiledTrie<'a>> for DictionaryFile<'a> {
         let header = Header {
             nb_nodes: trie.nodes().len(),
             nb_chars: trie.chars().len(),
+            nb_ranges: trie.ranges().len(),
         };
 
         // Create a dictionary that is not mapped to a file

@@ -1,11 +1,6 @@
+use super::index::*;
 use crate::CompiledTrieNode;
-use std::borrow::Cow;
-
-/// Represent a valid index in the [CompiledTrie](CompiledTrie) node array.
-#[derive(Debug, Copy, Clone)]
-pub struct IndexNode {
-    index: u32,
-}
+use std::{borrow::Cow, ops::Index};
 
 /// A trie data structure which has been optimized for size and speed.
 /// These optimizations come at the cost of not being able to modify the trie.
@@ -20,84 +15,84 @@ pub struct IndexNode {
 ///   nodes can be stored in an array, with each node holding the
 #[derive(Debug, Clone)]
 pub struct CompiledTrie<'a> {
-    nodes: Cow<'a, [CompiledTrieNode]>,
-    chars: Cow<'a, [char]>,
+    nodes: Cow<'a, NodeSlice>,
+    chars: Cow<'a, CharSlice>,
+    ranges: Cow<'a, RangeSlice>,
 }
 
 impl CompiledTrie<'_> {
     /// Return a slice of the node array.
-    pub(crate) fn nodes(&self) -> &[CompiledTrieNode] {
+    pub(crate) fn nodes(&self) -> &NodeSlice {
         &self.nodes
     }
 
     /// Return a slice of the character array.
-    /// Does not include characters of [SimpleNode](CompiledTrieNode::SimpleNode).
-    pub(crate) fn chars(&self) -> &[char] {
+    pub(crate) fn chars(&self) -> &CharSlice {
         &self.chars
     }
 
-    /// Get the node corresponding to the index.
-    pub fn get_node(&self, index: IndexNode) -> &CompiledTrieNode {
-        // get_unchecked would not be safe because even though an IndexNode is always
-        // valid when it is used on the CompiledTrie that have genereated it,
-        // it can be invalid if used on another smaller trie.
-        &self.nodes[index.index as usize]
-    }
-
-    /// Get the character slice associated to the index node.
-    pub fn get_node_chars(&self, index: IndexNode) -> &[char] {
-        match self.get_node(index) {
-            CompiledTrieNode::NaiveNode(node) => std::slice::from_ref(&node.character),
-            CompiledTrieNode::PatriciaNode(node) => {
-                let usize_range = (node.char_range.start as usize)..(node.char_range.end as usize);
-                &self.chars[usize_range]
-            }
-        }
+    /// Return a slice of the ranges array.
+    pub(crate) fn ranges(&self) -> &RangeSlice {
+        &self.ranges
     }
 
     /// Get the index of the root node.
     pub const fn index_root(&self) -> IndexNode {
-        IndexNode { index: 0 }
+        IndexNode::zero()
     }
 
-    /// Get the index of the first children of the current index.
-    pub fn index_child(&self, index: IndexNode) -> IndexNode {
-        IndexNode {
-            index: self.get_node(index).index_first_child(),
-        }
-    }
-
-    /// Try to get the index of a sibling of the current index.
+    /// Try to get the index of the first child of a sibling of the current index.
     /// If the offset is out-of-bound, return None.
-    pub fn index_sibling(&self, index: IndexNode, sibling_offset: u32) -> Option<IndexNode> {
-        if sibling_offset >= self.get_node(index).nb_siblings() {
+    pub fn index_child_of_sibling(
+        &self,
+        index: IndexNode,
+        sibling_offset: u32,
+    ) -> Option<IndexNode> {
+        if sibling_offset >= self[index].nb_siblings() {
             None
         } else {
-            Some(IndexNode {
-                index: index.index + sibling_offset,
-            })
+            Some(index.offset_unchecked(sibling_offset))
         }
     }
 
-    /// Same as [index_sibling](CompiledTrie::index_sibling) but no out-of-bound check is done.
-    pub unsafe fn index_sibling_unchecked(
+    /// Same as [index_child_of_sibling](CompiledTrie::index_child_of_sibling)
+    /// but **no out-of-bound check is done**.
+    pub fn index_child_of_sibling_unchecked(
         &self,
         index: IndexNode,
         sibling_offset: u32,
     ) -> IndexNode {
-        IndexNode {
-            index: index.index + sibling_offset,
-        }
+        index.offset_unchecked(sibling_offset)
     }
 }
 
-impl<'a> From<(&'a [CompiledTrieNode], &'a [char])> for CompiledTrie<'a> {
-    fn from((nodes, chars): (&'a [CompiledTrieNode], &'a [char])) -> Self {
+impl<'a> From<(&'a NodeSlice, &'a CharSlice, &'a RangeSlice)> for CompiledTrie<'a> {
+    fn from((nodes, chars, ranges): (&'a NodeSlice, &'a CharSlice, &'a RangeSlice)) -> Self {
         CompiledTrie {
             nodes: Cow::Borrowed(nodes),
             chars: Cow::Borrowed(chars),
+            ranges: Cow::Borrowed(ranges),
         }
     }
 }
 
 // TODO: impl From<Trie>
+
+// Macro to implement trie indexing for subslices index wrappers
+macro_rules! index_wrapper {
+    ($index:ident, $field: ident, $elem:ty) => {
+        impl Index<$index> for CompiledTrie<'_> {
+            type Output = $elem;
+
+            fn index(&self, index: $index) -> &Self::Output {
+                &self.$field[index]
+            }
+        }
+    };
+}
+
+index_wrapper!(IndexNode, nodes, CompiledTrieNode);
+index_wrapper!(IndexChar, chars, char);
+index_wrapper!(IndexRange, ranges, RangeElement);
+
+// TODO?: Add method to get char slice from range of IndexChar

@@ -9,6 +9,8 @@ pub trait AsBytes {
 }
 
 // Implement AsBytes for slices
+// It could still lead to some errors when T has a pointer (e.g. slice of vectors),
+// but these case should not appear in this project.
 impl<T> AsBytes for [T] {
     fn as_bytes(&self) -> &[u8] {
         unsafe {

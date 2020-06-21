@@ -1,7 +1,6 @@
+use super::index::*;
 use std::{num::NonZeroU32, ops::Range};
 
-/// **TODO: Check size + reduce fields size**
-///
 /// A [CompiledTrie](crate::CompiledTrie) node following a Patricia trie structure.
 #[derive(Debug, Clone)]
 pub struct PatriciaNode {
@@ -11,17 +10,15 @@ pub struct PatriciaNode {
     pub nb_siblings: u32,
 
     /// The index of the first child in the node array.
-    pub index_first_child: u32,
+    pub index_first_child: IndexNode,
 
     /// The word frequency. If None, the word does not exist in the dictionary.
     pub word_freq: Option<NonZeroU32>,
 
     /// The range of characters associated to this node in the characters array.
-    pub char_range: Range<u32>,
+    pub char_range: Range<IndexChar>,
 }
 
-/// **TODO: Check size + reduce fields size**
-///
 /// A [CompiledTrie](crate::CompiledTrie) node following a naive trie structure.
 #[derive(Debug, Clone)]
 pub struct NaiveNode {
@@ -30,13 +27,29 @@ pub struct NaiveNode {
     pub nb_siblings: u32,
 
     /// The index of the first child in the node array.
-    pub index_first_child: u32,
+    pub index_first_child: IndexNode,
 
     /// The word frequency. If None, the word does not exist in the dictionary.
     pub word_freq: Option<NonZeroU32>,
 
     /// The character associated to this node.
     pub character: char,
+}
+
+#[derive(Debug, Clone)]
+pub struct RangeNode {
+    /// The number of siblings of the node.
+    /// The next sibling is located at the next index in the node array.
+    pub nb_siblings: u32,
+
+    /// The first character represented by this node.
+    pub first_char: char,
+
+    /// The number of characters represented by this node.
+    pub len: u32,
+
+    /// The index of the range in the eponymic array.
+    pub index_range: IndexRange,
 }
 
 /// A node of a compiled trie.
@@ -51,6 +64,10 @@ pub enum CompiledTrieNode {
     /// Node following the structure of a naive trie.
     /// More efficient to hold one-character strings.
     NaiveNode(NaiveNode),
+
+    /// Node representing a range of characters where children are stored
+    /// in the range array.
+    RangeNode(RangeNode),
 }
 
 // Implement getters for fields that are contained in all enumeration values.
@@ -61,6 +78,7 @@ macro_rules! impl_get_field {
             match self {
                 Self::NaiveNode(node) => node.$field,
                 Self::PatriciaNode(node) => node.$field,
+                Self::RangeNode(node) => node.$field,
             }
         }
     };
@@ -68,6 +86,4 @@ macro_rules! impl_get_field {
 
 impl CompiledTrieNode {
     impl_get_field!(nb_siblings, u32);
-    impl_get_field!(index_first_child, u32);
-    impl_get_field!(word_freq, Option<NonZeroU32>);
 }
