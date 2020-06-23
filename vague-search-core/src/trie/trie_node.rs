@@ -45,11 +45,8 @@ pub struct RangeNode {
     /// The first character represented by this node.
     pub first_char: char,
 
-    /// The number of characters represented by this node.
-    pub len: u32,
-
     /// The index of the range in the eponymic array.
-    pub index_range: IndexRange,
+    pub range: Range<IndexRange>,
 }
 
 /// A node of a compiled trie.
@@ -76,9 +73,9 @@ macro_rules! impl_get_field {
         /// Get the corresponding field of a node.
         pub fn $field(&self) -> $ret {
             match self {
-                Self::NaiveNode(node) => node.$field,
-                Self::PatriciaNode(node) => node.$field,
-                Self::RangeNode(node) => node.$field,
+                Self::NaiveNode(node) => node.$field as $ret,
+                Self::PatriciaNode(node) => node.$field as $ret,
+                Self::RangeNode(node) => node.$field as $ret,
             }
         }
     };

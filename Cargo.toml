@@ -15,4 +15,3 @@ panic = "abort"
 
 [dependencies]
 vague-search-core = { path = "./vague-search-core" }
-libc = "0.2"
