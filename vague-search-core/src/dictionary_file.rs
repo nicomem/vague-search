@@ -10,7 +10,6 @@ use std::{
     fs::{File, Metadata, OpenOptions},
     io::Write,
     mem::size_of,
-    os::unix::io::IntoRawFd,
     path::Path,
 };
 
@@ -32,6 +31,10 @@ pub struct Header {
 /// without copying the entire file in memory.
 #[derive(Debug)]
 pub struct DictionaryFile<'a> {
+    // Read the file if mmap not available
+    #[cfg(not(unix))]
+    read_bytes: Vec<u8>,
+
     mmap_ptr: *const libc::c_void,
     ptr_len: usize,
 
@@ -76,32 +79,55 @@ impl DictionaryFile<'_> {
     /// Uses mmap internally to reduce memory usage.
     pub fn read_file(path: &Path) -> Result<Self> {
         // Open the file and read its length
+        #[cfg(unix)]
         let file: File = File::open(path).context(FileOpen { path })?;
-        let meta: Metadata = file.metadata().context(FileMeta { path })?;
+        #[cfg(not(unix))]
+        let mut file: File = File::open(path).context(FileOpen { path })?;
 
-        let fd = file.into_raw_fd();
+        let meta: Metadata = file.metadata().context(FileMeta { path })?;
         let file_len = meta.len() as usize;
 
-        // mmap the file instead of reading it for speed and low memory consumption
-        let mmap_ptr = unsafe {
-            libc::mmap(
-                std::ptr::null_mut(),
-                file_len,
-                libc::PROT_READ,
-                libc::MAP_SHARED,
-                fd,
-                0,
-            )
+        // If unix: mmap the file
+        // Else: read entire file
+        #[cfg(unix)]
+        let mmap_ptr = {
+            use std::os::unix::io::IntoRawFd;
+            let fd = file.into_raw_fd();
+
+            // mmap the file instead of reading it for speed and low memory consumption
+            let mmap_ptr = unsafe {
+                libc::mmap(
+                    std::ptr::null_mut(),
+                    file_len,
+                    libc::PROT_READ,
+                    libc::MAP_SHARED,
+                    fd,
+                    0,
+                )
+            };
+
+            // Return an error if mmap failed
+            ensure!(
+                mmap_ptr != libc::MAP_FAILED,
+                FileMmap {
+                    path,
+                    strerror: unsafe { strerror() }.unwrap_or("Unknown")
+                }
+            );
+
+            // Return pointer and dummy vector
+            mmap_ptr
         };
 
-        // Return an error if mmap failed
-        ensure!(
-            mmap_ptr != libc::MAP_FAILED,
-            FileMmap {
-                path,
-                strerror: unsafe { strerror() }.unwrap_or("Unknown")
-            }
-        );
+        #[cfg(not(unix))]
+        let (mmap_ptr, read_bytes) = {
+            use std::io::Read;
+
+            let mut buf = Vec::with_capacity(file_len);
+            file.read_exact(&mut buf).context(FileRead { path })?;
+
+            (buf.as_ptr() as *mut core::ffi::c_void, buf)
+        };
 
         // Type and read the header
         let header = unsafe { *(mmap_ptr as *const Header) };
@@ -124,6 +150,8 @@ impl DictionaryFile<'_> {
         };
 
         Ok(Self {
+            #[cfg(not(unix))]
+            read_bytes,
             mmap_ptr,
             ptr_len: file_len,
             header,
@@ -181,6 +209,8 @@ impl<'a> From<CompiledTrie<'a>> for DictionaryFile<'a> {
 
         // Create a dictionary that is not mapped to a file
         Self {
+            #[cfg(not(unix))]
+            read_bytes: Vec::new(),
             mmap_ptr: std::ptr::null(),
             ptr_len: 0,
             header,
