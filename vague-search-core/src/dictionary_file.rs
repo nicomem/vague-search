@@ -4,9 +4,8 @@ use crate::{
     utils::{as_bytes, AsBytes},
     CompiledTrie, CompiledTrieNode,
 };
-use snafu::{ensure, ResultExt};
+use snafu::ResultExt;
 use std::{
-    ffi::CStr,
     fs::{File, Metadata, OpenOptions},
     io::Write,
     mem::size_of,
@@ -32,7 +31,7 @@ pub struct Header {
 #[derive(Debug)]
 pub struct DictionaryFile<'a> {
     // Read the file if mmap not available
-    #[cfg(not(unix))]
+    #[cfg(windows)]
     read_bytes: Vec<u8>,
 
     mmap_ptr: *const libc::c_void,
@@ -43,10 +42,11 @@ pub struct DictionaryFile<'a> {
 }
 
 /// Helper function to get the error string from errno after a failed libc function call.
+#[cfg(not(windows))]
 unsafe fn strerror() -> Option<&'static str> {
     let errno = *libc::__errno_location();
     let strerror = libc::strerror(errno);
-    let cstr = CStr::from_ptr(strerror);
+    let cstr = std::ffi::CStr::from_ptr(strerror);
     cstr.to_str().ok()
 }
 
@@ -76,50 +76,75 @@ impl DictionaryFile<'_> {
 
     /// Try to read the dictionary from a file, previously written using the
     /// [write_file](DictionaryFile::write_file) method.
-    /// Uses mmap internally to reduce memory usage.
+    /// Uses mmap internally *on unix platforms* to reduce memory usage.
+    #[cfg(not(windows))]
     pub fn read_file(path: &Path) -> Result<Self> {
         // Open the file and read its length
-        #[cfg(unix)]
         let file: File = File::open(path).context(FileOpen { path })?;
-        #[cfg(not(unix))]
+
+        let meta: Metadata = file.metadata().context(FileMeta { path })?;
+        let file_len = meta.len() as usize;
+
+        use std::os::unix::io::IntoRawFd;
+        let fd = file.into_raw_fd();
+
+        // mmap the file instead of reading it for speed and low memory consumption
+        let mmap_ptr = unsafe {
+            libc::mmap(
+                std::ptr::null_mut(),
+                file_len,
+                libc::PROT_READ,
+                libc::MAP_SHARED,
+                fd,
+                0,
+            )
+        };
+
+        // Return an error if mmap failed
+        snafu::ensure!(
+            mmap_ptr != libc::MAP_FAILED,
+            FileMmap {
+                path,
+                strerror: unsafe { strerror() }.unwrap_or("Unknown")
+            }
+        );
+
+        // Type and read the header
+        let header = unsafe { *(mmap_ptr as *const Header) };
+
+        // Type the compiled trie
+
+        let trie = unsafe {
+            // Get the offset pointers to each array
+            let (nodes_ptr, chars_ptr, ranges_ptr) = Self::get_offsets_ptr(&header, mmap_ptr);
+
+            // Type each array
+            let nodes =
+                std::slice::from_raw_parts(nodes_ptr as *const CompiledTrieNode, header.nb_nodes);
+            let chars = std::slice::from_raw_parts(chars_ptr as *const char, header.nb_chars);
+            let ranges =
+                std::slice::from_raw_parts(ranges_ptr as *const RangeElement, header.nb_ranges);
+
+            // Create a borrowing compiled trie
+            CompiledTrie::from((nodes, chars, ranges))
+        };
+
+        Ok(Self {
+            mmap_ptr,
+            ptr_len: file_len,
+            header,
+            trie,
+        })
+    }
+
+    #[cfg(windows)]
+    pub fn read_file(path: &Path) -> Result<Self> {
+        // Open the file and read its length
         let mut file: File = File::open(path).context(FileOpen { path })?;
 
         let meta: Metadata = file.metadata().context(FileMeta { path })?;
         let file_len = meta.len() as usize;
 
-        // If unix: mmap the file
-        // Else: read entire file
-        #[cfg(unix)]
-        let mmap_ptr = {
-            use std::os::unix::io::IntoRawFd;
-            let fd = file.into_raw_fd();
-
-            // mmap the file instead of reading it for speed and low memory consumption
-            let mmap_ptr = unsafe {
-                libc::mmap(
-                    std::ptr::null_mut(),
-                    file_len,
-                    libc::PROT_READ,
-                    libc::MAP_SHARED,
-                    fd,
-                    0,
-                )
-            };
-
-            // Return an error if mmap failed
-            ensure!(
-                mmap_ptr != libc::MAP_FAILED,
-                FileMmap {
-                    path,
-                    strerror: unsafe { strerror() }.unwrap_or("Unknown")
-                }
-            );
-
-            // Return pointer and dummy vector
-            mmap_ptr
-        };
-
-        #[cfg(not(unix))]
         let (mmap_ptr, read_bytes) = {
             use std::io::Read;
 
@@ -150,7 +175,6 @@ impl DictionaryFile<'_> {
         };
 
         Ok(Self {
-            #[cfg(not(unix))]
             read_bytes,
             mmap_ptr,
             ptr_len: file_len,
@@ -190,6 +214,7 @@ impl DictionaryFile<'_> {
     }
 }
 
+#[cfg(not(windows))]
 impl Drop for DictionaryFile<'_> {
     fn drop(&mut self) {
         // munmap the inner pointer if the struct was read from a file
@@ -209,7 +234,7 @@ impl<'a> From<CompiledTrie<'a>> for DictionaryFile<'a> {
 
         // Create a dictionary that is not mapped to a file
         Self {
-            #[cfg(not(unix))]
+            #[cfg(windows)]
             read_bytes: Vec::new(),
             mmap_ptr: std::ptr::null(),
             ptr_len: 0,
