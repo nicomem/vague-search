@@ -6,7 +6,7 @@ use crate::{
 };
 use snafu::ResultExt;
 use std::{
-    ffi::{c_void, CStr},
+    ffi::c_void,
     fs::{File, Metadata, OpenOptions},
     io::Write,
     mem::size_of,
@@ -47,7 +47,7 @@ pub struct DictionaryFile<'a> {
 unsafe fn strerror() -> Option<&'static str> {
     let errno = *libc::__errno_location();
     let strerror = libc::strerror(errno);
-    let cstr = CStr::from_ptr(strerror);
+    let cstr = std::ffi::CStr::from_ptr(strerror);
     cstr.to_str().ok()
 }
 
