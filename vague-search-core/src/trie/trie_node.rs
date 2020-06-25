@@ -55,15 +55,16 @@ pub struct RangeNode {
 #[derive(Debug, Clone)]
 pub enum CompiledTrieNode {
     /// Node following the structure of a PATRICIA trie.
-    /// More efficient to hold multiple-characters strings
+    /// More efficient to hold multiple-characters strings (e.g. bar-foo).
     PatriciaNode(PatriciaNode),
 
     /// Node following the structure of a naive trie.
-    /// More efficient to hold one-character strings.
+    /// More efficient to hold one-character strings (e.g. a-f-i-z).
     NaiveNode(NaiveNode),
 
     /// Node representing a range of characters where children are stored
     /// in the range array.
+    /// More efficient for continuous range of 1-character nodes (e.g. a-b-c-d).
     RangeNode(RangeNode),
 }
 

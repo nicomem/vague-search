@@ -6,6 +6,7 @@ use crate::{
 };
 use snafu::ResultExt;
 use std::{
+    ffi::{c_void, CStr},
     fs::{File, Metadata, OpenOptions},
     io::Write,
     mem::size_of,
@@ -34,7 +35,7 @@ pub struct DictionaryFile<'a> {
     #[cfg(windows)]
     read_bytes: Vec<u8>,
 
-    mmap_ptr: *const libc::c_void,
+    mmap_ptr: *const c_void,
     ptr_len: usize,
 
     pub header: Header,
@@ -46,23 +47,20 @@ pub struct DictionaryFile<'a> {
 unsafe fn strerror() -> Option<&'static str> {
     let errno = *libc::__errno_location();
     let strerror = libc::strerror(errno);
-    let cstr = std::ffi::CStr::from_ptr(strerror);
+    let cstr = CStr::from_ptr(strerror);
     cstr.to_str().ok()
 }
 
 impl DictionaryFile<'_> {
-    /// Return the offsets of the inner data which is composed of:
+    /// Return the offset pointers of the inner data which is composed of:
+    /// - `Header` (offset 0, not returned)
     /// - `Vec<Node>`
     /// - `Vec<char>`
     /// - `Vec<RangeElement>`
     unsafe fn get_offsets_ptr(
         header: &Header,
-        ptr: *const libc::c_void,
-    ) -> (
-        *const libc::c_void,
-        *const libc::c_void,
-        *const libc::c_void,
-    ) {
+        ptr: *const c_void,
+    ) -> (*const c_void, *const c_void, *const c_void) {
         const HEADER_LEN: usize = size_of::<Header>();
         const NODE_LEN: usize = size_of::<CompiledTrieNode>();
         const CHAR_LEN: usize = size_of::<char>();
@@ -81,7 +79,6 @@ impl DictionaryFile<'_> {
     pub fn read_file(path: &Path) -> Result<Self> {
         // Open the file and read its length
         let file: File = File::open(path).context(FileOpen { path })?;
-
         let meta: Metadata = file.metadata().context(FileMeta { path })?;
         let file_len = meta.len() as usize;
 
@@ -113,7 +110,6 @@ impl DictionaryFile<'_> {
         let header = unsafe { *(mmap_ptr as *const Header) };
 
         // Type the compiled trie
-
         let trie = unsafe {
             // Get the offset pointers to each array
             let (nodes_ptr, chars_ptr, ranges_ptr) = Self::get_offsets_ptr(&header, mmap_ptr);
@@ -141,7 +137,6 @@ impl DictionaryFile<'_> {
     pub fn read_file(path: &Path) -> Result<Self> {
         // Open the file and read its length
         let mut file: File = File::open(path).context(FileOpen { path })?;
-
         let meta: Metadata = file.metadata().context(FileMeta { path })?;
         let file_len = meta.len() as usize;
 
@@ -151,7 +146,7 @@ impl DictionaryFile<'_> {
             let mut buf = Vec::with_capacity(file_len);
             file.read_exact(&mut buf).context(FileRead { path })?;
 
-            (buf.as_ptr() as *mut core::ffi::c_void, buf)
+            (buf.as_ptr() as *mut c_void, buf)
         };
 
         // Type and read the header
@@ -219,7 +214,7 @@ impl Drop for DictionaryFile<'_> {
     fn drop(&mut self) {
         // munmap the inner pointer if the struct was read from a file
         if self.mmap_ptr != std::ptr::null() {
-            unsafe { libc::munmap(self.mmap_ptr as *mut libc::c_void, self.ptr_len) };
+            unsafe { libc::munmap(self.mmap_ptr as *mut c_void, self.ptr_len) };
         }
     }
 }

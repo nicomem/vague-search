@@ -22,8 +22,8 @@ impl<T> AsBytes for [T] {
     }
 }
 
-// Don't directly implement AsBytes for all T because it could lead to errors.
-// It is also marked as unsafe because
+// Don't directly implement AsBytes for all T because it could lead to errors
+// if implemented for any value.
 /// Return the raw byte representation of the value.
 ///
 /// **Warning notes:**
