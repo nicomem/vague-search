@@ -1,8 +1,7 @@
 use crate::{
     error::*,
-    trie::index::RangeElement,
     utils::{as_bytes, AsBytes},
-    CompiledTrie, CompiledTrieNode,
+    CompiledTrie, CompiledTrieNode, RangeElement,
 };
 use snafu::ResultExt;
 use std::{

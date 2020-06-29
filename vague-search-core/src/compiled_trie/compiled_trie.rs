@@ -15,9 +15,9 @@ use std::{borrow::Cow, ops::Range};
 ///   nodes can be stored in a contiguous array.
 #[derive(Debug, Clone)]
 pub struct CompiledTrie<'a> {
-    nodes: Cow<'a, [CompiledTrieNode]>,
-    chars: Cow<'a, [char]>,
-    ranges: Cow<'a, [RangeElement]>,
+    pub(super) nodes: Cow<'a, [CompiledTrieNode]>,
+    pub(super) chars: Cow<'a, [char]>,
+    pub(super) ranges: Cow<'a, [RangeElement]>,
 }
 
 impl CompiledTrie<'_> {
@@ -68,7 +68,9 @@ impl CompiledTrie<'_> {
         self.nodes
             .get(*current_index as usize)
             .filter(|node| sibling_offset < node.nb_siblings() as u32)
-            .map(|_| current_index.offset_unchecked(sibling_offset))
+            .map(|_| unsafe {
+                self.index_child_of_sibling_unchecked(current_index, sibling_offset)
+            })
     }
 
     /// Same as [index_child_of_sibling](crate::CompiledTrie::index_child_of_sibling)
@@ -78,7 +80,7 @@ impl CompiledTrie<'_> {
         current_index: IndexNode,
         sibling_offset: u32,
     ) -> IndexNode {
-        current_index.offset_unchecked(sibling_offset)
+        IndexNode::new(*current_index + sibling_offset)
     }
 }
 
@@ -93,5 +95,3 @@ impl<'a> From<(&'a [CompiledTrieNode], &'a [char], &'a [RangeElement])> for Comp
         }
     }
 }
-
-// TODO: impl From<Trie>

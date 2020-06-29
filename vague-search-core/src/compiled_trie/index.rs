@@ -32,6 +32,12 @@ macro_rules! index_wrapper {
                 &self.index
             }
         }
+
+        impl $index {
+            pub(super) const fn new(index: u32) -> Self {
+                Self { index }
+            }
+        }
     };
 }
 
@@ -42,14 +48,5 @@ index_wrapper!(IndexRange);
 impl Default for IndexNode {
     fn default() -> Self {
         Self { index: 0 }
-    }
-}
-
-// Implement some useful methods for CompiledTrie.
-impl IndexNode {
-    pub(super) const fn offset_unchecked(self, offset: u32) -> Self {
-        Self {
-            index: self.index + offset,
-        }
     }
 }
