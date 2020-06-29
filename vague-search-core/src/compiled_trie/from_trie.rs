@@ -29,7 +29,12 @@ fn fill_from_trie<N: TrieNodeInterface>(
     chars: &mut Vec<char>,
     ranges: &mut Vec<RangeElement>,
 ) {
+    // The start of the current layer, where children.len() elements
+    // will be added just below
+    let layer_start = nodes.len();
     let children = node.children();
+
+    // Fill the current node layer, without the index_first_child
     for (i, child) in children.iter().enumerate() {
         let node_chars = child.characters();
         let nb_siblings = (children.len() - i - 1) as u32;
@@ -55,7 +60,30 @@ fn fill_from_trie<N: TrieNodeInterface>(
             })
         };
 
+        // TODO: RangeNode
+
         nodes.push(node);
+    }
+
+    // Call recursively for the children
+    for (i, child) in children.iter().enumerate() {
+        // The first child will be placed at the next index in the nodes vector
+        let index_first_child = nodes.len();
+
+        // Call recursively with for the current node
+        fill_from_trie(child, nodes, chars, ranges);
+
+        // Update the current node with the correct information
+        let node = &mut nodes[layer_start + i];
+        match node {
+            CompiledTrieNode::NaiveNode(ref mut n) => {
+                n.index_first_child = IndexNode::new(index_first_child as u32)
+            }
+            CompiledTrieNode::PatriciaNode(ref mut n) => {
+                n.index_first_child = IndexNode::new(index_first_child as u32)
+            }
+            CompiledTrieNode::RangeNode(_) => todo!("No range node currently"),
+        }
     }
 }
 
