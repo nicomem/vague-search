@@ -155,7 +155,6 @@ impl DictionaryFile<'_> {
         let header = unsafe { *(mmap_ptr as *const Header) };
 
         // Type the compiled trie
-
         let trie = unsafe {
             // Get the offset pointers to each array
             let (nodes_ptr, chars_ptr, ranges_ptr) = Self::get_offsets_ptr(&header, mmap_ptr);
@@ -166,6 +165,8 @@ impl DictionaryFile<'_> {
 
             let chars_u8 =
                 std::slice::from_raw_parts(chars_ptr as *const u8, header.nb_chars_bytes);
+            // The string has already been checked during compilation so we don't need to here
+            // (also everything here is extremely unsafe and relies on the fact that the file has not been modified)
             let chars = std::str::from_utf8_unchecked(chars_u8);
 
             let ranges =

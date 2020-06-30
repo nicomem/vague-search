@@ -36,6 +36,11 @@ impl CompiledTrie<'_> {
         &self.ranges
     }
 
+    /// Return the index of the root
+    pub const fn root(&self) -> IndexNode {
+        IndexNode::new(0)
+    }
+
     /// Get a node and its *right* siblings from the trie.
     pub fn get_siblings(&self, index: IndexNode) -> Option<&[CompiledTrieNode]> {
         let nb_siblings = self
@@ -68,14 +73,12 @@ impl CompiledTrie<'_> {
         self.nodes
             .get(*current_index as usize)
             .filter(|node| sibling_offset < node.nb_siblings() as u32)
-            .map(|_| unsafe {
-                self.index_child_of_sibling_unchecked(current_index, sibling_offset)
-            })
+            .map(|_| self.index_child_of_sibling_unchecked(current_index, sibling_offset))
     }
 
     /// Same as [index_child_of_sibling](crate::CompiledTrie::index_child_of_sibling)
     /// but no out-of-bound checks are done.
-    pub unsafe fn index_child_of_sibling_unchecked(
+    pub fn index_child_of_sibling_unchecked(
         &self,
         current_index: IndexNode,
         sibling_offset: u32,

@@ -32,7 +32,11 @@ macro_rules! index_wrapper {
                 &self.index
             }
         }
+    };
+}
 
+macro_rules! derive_new {
+    ($index:ident) => {
         impl $index {
             pub(super) const fn new(index: u32) -> Self {
                 Self { index }
@@ -44,9 +48,5 @@ macro_rules! index_wrapper {
 index_wrapper!(IndexNode);
 index_wrapper!(IndexChar);
 index_wrapper!(IndexRange);
-
-impl Default for IndexNode {
-    fn default() -> Self {
-        Self { index: 0 }
-    }
-}
+derive_new!(IndexNode);
+derive_new!(IndexChar);
