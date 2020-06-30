@@ -41,25 +41,59 @@ fn should_add_to_range(range: &[char], cur: char) -> bool {
 }
 
 /// Find the best node types to create from the given nodes.
-fn find_best_node_types<'a, N: TrieNodeDrainer>(nodes: &'a mut [N]) -> Vec<TrieNode<'a, N>> {
+fn node_type_heuristic<'a, N: TrieNodeDrainer>(nodes: &'a mut [N]) -> Vec<TrieNode<'a, N>> {
     let mut res_nodes = Vec::new();
     let mut cur_range = Vec::new();
-    for node in nodes {
-        let chars = node.drain_characters();
-        let is_one_char = chars.chars().nth(1).is_none();
 
-        // If current range is not empty, either:
-        // - add current char to the range
-        // - finish the range and add it to res_nodes
-        if cur_range.len() > 0 {
-            let cur_char = chars.chars().nth(0);
-            if !is_one_char || !should_add_to_range(&cur_range, cur_char.unwrap()) {
-                // Finish
-            } else {
-                // Add to range
-            }
+    // Drain the characters before looping to avoid the mutable reference to the nodes
+    let node_chars: Vec<String> = nodes.iter_mut().map(|n| n.drain_characters()).collect();
+
+    'for_nodes: for (i, (node, chars)) in nodes.iter().zip(node_chars).enumerate() {
+        let is_one_char = chars.chars().nth(1).is_none();
+        let first_char = chars.chars().nth(0);
+
+        // Check the range state and either:
+        // - add a character to the range and continue the loop
+        // - extract the range as a SimpleNode
+        // - extract the range as a RangeNode
+        if is_one_char && should_add_to_range(&cur_range, first_char.unwrap()) {
+            // Add the character to the range => RangeNode (not finished)
+            cur_range.push(first_char.unwrap());
+
+            // This node has been assigned, we can continue with the next
+            continue 'for_nodes;
+        } else if cur_range.len() == 1 {
+            // There is only one character in the range => SimpleNode
+
+            // Get the simple node, since there is only one character in the range,
+            // the node is the one processed just before the current => i - 1
+            let simple_node = &nodes[i - 1];
+            res_nodes.push(TrieNode::Simple(simple_node, first_char.unwrap()));
+        } else {
+            // There is multiple characters in the range => RangeNode
+
+            // Extract the range (and empty cur_range)
+            let mut finished_range = Vec::new();
+            cur_range.swap_with_slice(&mut finished_range);
+
+            // Create the slice of the nodes in the range
+            let range_len = finished_range.len();
+            let slice = &nodes[(i - range_len)..i];
+
+            // Push the finished range to the list of nodes to creates
+            res_nodes.push(TrieNode::Range(slice, finished_range));
+        }
+
+        // Process the current node
+        if is_one_char {
+            // Begin the range => SimpleNode / RangeNode (not finished)
+            cur_range.push(first_char.unwrap());
+        } else {
+            // Multiple characters => PatriciaNode
+            res_nodes.push(TrieNode::Patricia(node, chars))
         }
     }
+
     res_nodes
 }
 
@@ -71,6 +105,8 @@ fn fill_from_trie<N: TrieNodeDrainer>(
     big_string: &mut String,
     ranges: &mut Vec<RangeElement>,
 ) {
+    todo!("Replace with the heuristic");
+
     // The start of the current layer, where children.len() elements
     // will be added just below
     let layer_start = nodes.len();
