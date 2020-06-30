@@ -1,5 +1,6 @@
 use crate::{trie::trie_node_interface::TrieNodeDrainer, *};
 use std::{borrow::Cow, ops::Range};
+use utils::char_dist;
 
 /// Add the characters to the vector and return its range of index.
 /// If the characters are already present in the vector, it may not insert them
@@ -16,6 +17,50 @@ fn add_chars(big_string: &mut String, chars: &str) -> Range<IndexChar> {
     let end = IndexChar::new(big_string.len() as u32);
 
     start..end
+}
+
+enum TrieNode<'a, N: TrieNodeDrainer> {
+    Simple(&'a N, char),
+    Patricia(&'a N, String),
+    Range(&'a [N], Vec<char>),
+}
+
+/// Check if the current character should be added to the current range.
+fn should_add_to_range(range: &[char], cur: char) -> bool {
+    // Because a RangeElement takes 4x less memory than a CompiledTrieNode,
+    // we can allow 4 empty cells between 2 elements without taking more memory.
+    // Moreover, since a range is faster than multiple nodes (indexing vs searching)
+    // it is prefered in case they both take the same amount of memory.
+    const MAX_DIST_IN_RANGE: i32 = 5;
+
+    // Check the number of empty cells will be placed between the last character
+    // in the range and the current if we add it.
+    range
+        .last()
+        .map_or(false, |&last| char_dist(last, cur) <= MAX_DIST_IN_RANGE)
+}
+
+/// Find the best node types to create from the given nodes.
+fn find_best_node_types<'a, N: TrieNodeDrainer>(nodes: &'a mut [N]) -> Vec<TrieNode<'a, N>> {
+    let mut res_nodes = Vec::new();
+    let mut cur_range = Vec::new();
+    for node in nodes {
+        let chars = node.drain_characters();
+        let is_one_char = chars.chars().nth(1).is_none();
+
+        // If current range is not empty, either:
+        // - add current char to the range
+        // - finish the range and add it to res_nodes
+        if cur_range.len() > 0 {
+            let cur_char = chars.chars().nth(0);
+            if !is_one_char || !should_add_to_range(&cur_range, cur_char.unwrap()) {
+                // Finish
+            } else {
+                // Add to range
+            }
+        }
+    }
+    res_nodes
 }
 
 /// Append the information of the given node and its children
