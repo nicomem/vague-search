@@ -17,7 +17,7 @@ use std::{
 #[derive(Debug, Copy, Clone)]
 pub struct Header {
     pub nb_nodes: usize,
-    pub nb_chars: usize,
+    pub nb_chars_bytes: usize,
     pub nb_ranges: usize,
 }
 
@@ -62,11 +62,10 @@ impl DictionaryFile<'_> {
     ) -> (*const c_void, *const c_void, *const c_void) {
         const HEADER_LEN: usize = size_of::<Header>();
         const NODE_LEN: usize = size_of::<CompiledTrieNode>();
-        const CHAR_LEN: usize = size_of::<char>();
 
         let nodes_ptr = ptr.offset(HEADER_LEN as isize);
         let chars_ptr = nodes_ptr.offset((header.nb_nodes * NODE_LEN) as isize);
-        let ranges_ptr = chars_ptr.offset((header.nb_chars * CHAR_LEN) as isize);
+        let ranges_ptr = chars_ptr.offset(header.nb_chars_bytes as isize);
 
         (nodes_ptr, chars_ptr, ranges_ptr)
     }
@@ -116,7 +115,11 @@ impl DictionaryFile<'_> {
             // Type each array
             let nodes =
                 std::slice::from_raw_parts(nodes_ptr as *const CompiledTrieNode, header.nb_nodes);
-            let chars = std::slice::from_raw_parts(chars_ptr as *const char, header.nb_chars);
+
+            let chars_u8 =
+                std::slice::from_raw_parts(chars_ptr as *const u8, header.nb_chars_bytes);
+            let chars = std::str::from_utf8_unchecked(chars_u8);
+
             let ranges =
                 std::slice::from_raw_parts(ranges_ptr as *const RangeElement, header.nb_ranges);
 
@@ -160,7 +163,11 @@ impl DictionaryFile<'_> {
             // Type each array
             let nodes =
                 std::slice::from_raw_parts(nodes_ptr as *const CompiledTrieNode, header.nb_nodes);
-            let chars = std::slice::from_raw_parts(chars_ptr as *const char, header.nb_chars);
+
+            let chars_u8 =
+                std::slice::from_raw_parts(chars_ptr as *const u8, header.nb_chars_bytes);
+            let chars = std::str::from_utf8_unchecked(chars_u8);
+
             let ranges =
                 std::slice::from_raw_parts(ranges_ptr as *const RangeElement, header.nb_ranges);
 
@@ -222,7 +229,7 @@ impl<'a> From<CompiledTrie<'a>> for DictionaryFile<'a> {
     fn from(trie: CompiledTrie<'a>) -> Self {
         let header = Header {
             nb_nodes: trie.nodes().len(),
-            nb_chars: trie.chars().len(),
+            nb_chars_bytes: trie.chars().as_bytes().len(),
             nb_ranges: trie.ranges().len(),
         };
 

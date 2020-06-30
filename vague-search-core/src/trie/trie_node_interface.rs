@@ -1,4 +1,4 @@
-use std::num::NonZeroU32;
+use std::{borrow::Cow, num::NonZeroU32};
 
 pub trait TrieNodeInterface: Sized {
     /// Give a hint about the number of nodes in the trie
@@ -12,13 +12,16 @@ pub trait TrieNodeInterface: Sized {
     fn hint_nb_nodes(&self) -> usize;
 
     /// Return the characters associated to this node.
-    fn characters(&self) -> &[char];
+    fn characters(&self) -> Cow<'_, str>;
 
     /// Return the frequency associated to an end node.
     /// If the node does not correspond to the end of a node, return None.
     fn frequency(&self) -> Option<NonZeroU32>;
 
+    /// Return the number of children this node has.
+    fn nb_children(&self) -> usize;
+
     /// Return an iterator over the children of the node.
     /// This iterator is sorted over the children character slices.
-    fn children(&self) -> &[Self];
+    fn children(&self) -> Box<dyn Iterator<Item = &Self>>;
 }
