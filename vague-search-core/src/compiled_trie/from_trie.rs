@@ -1,5 +1,5 @@
 use crate::{trie::trie_node_interface::TrieNodeDrainer, *};
-use std::{borrow::Cow, ops::Range};
+use std::{borrow::Cow, num::NonZeroU32, ops::Range};
 use utils::char_dist;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -27,13 +27,45 @@ fn add_chars(big_string: &mut String, chars: &str) -> Range<IndexChar> {
 }
 
 /// Add a range to the trie ranges, and return its range of index and first character.
-/// The create
-fn add_empty_range<N: TrieNodeDrainer>(
-    trie_ranges: &mut Vec<RangeElement>,
+/// The created range is composed of:
+/// - Partially completed values (for characters present in the slice)
+/// - None values (for characters not present in the slice)
+///
+/// The partially created values is composed of as many information available in
+/// the given parameters, the rest is filled with dummy values.
+///
+/// The fields filled with dummy values are:
+/// - `index_first_child`
+fn add_range<N: TrieNodeDrainer>(
+    trie_ranges: &mut Vec<Option<RangeElement>>,
     nodes: &[N],
     range_chars: &[char],
 ) -> (Range<IndexRange>, char) {
-    todo!()
+    let dummy_index = IndexNodeNonZero::new(NonZeroU32::new(12345).unwrap());
+
+    debug_assert_ne!(range_chars.len(), 0);
+    debug_assert_eq!(nodes.len(), range_chars.len());
+
+    let min = *range_chars.iter().min().unwrap();
+    let max = *range_chars.iter().max().unwrap();
+    let range_len = max as usize - min as usize;
+
+    let index_range = IndexRange::new(trie_ranges.len() as u32)
+        ..IndexRange::new((trie_ranges.len() + range_len) as u32);
+
+    let char_to_index = |&c| c as usize - min as usize + *index_range.start as usize;
+
+    // Create None values for the range
+    trie_ranges.resize(trie_ranges.len() + range_len as usize, None);
+
+    for (i, node) in range_chars.iter().map(char_to_index).zip(nodes) {
+        trie_ranges[i as usize] = Some(RangeElement {
+            index_first_child: dummy_index,
+            word_freq: node.frequency(),
+        })
+    }
+
+    (index_range, min)
 }
 
 /// Check if the current character should be added to the current range.
@@ -153,9 +185,9 @@ fn fill_from_trie<N: TrieNodeDrainer>(
     mut node: N,
     trie_nodes: &mut Vec<CompiledTrieNode>,
     trie_chars: &mut String,
-    trie_ranges: &mut Vec<RangeElement>,
+    trie_ranges: &mut Vec<Option<RangeElement>>,
 ) {
-    const DUMMY_INDEX: IndexNode = IndexNode::new(0);
+    const DUMMY_INDEX: IndexNode = IndexNode::new(54321);
 
     // Drain the children from the node and their characters
     let mut children = node.drain_children();
@@ -183,7 +215,7 @@ fn fill_from_trie<N: TrieNodeDrainer>(
                 })
             }
             TrieNode::Range(nodes, range_chars) => {
-                let (range, first_char) = add_empty_range(trie_ranges, nodes, range_chars);
+                let (range, first_char) = add_range(trie_ranges, nodes, range_chars);
                 CompiledTrieNode::RangeNode(RangeNode {
                     nb_siblings,
                     first_char,
@@ -194,7 +226,7 @@ fn fill_from_trie<N: TrieNodeDrainer>(
 
         trie_nodes.push(node);
     }
-    todo!("Replace with the heuristic");
+    todo!("Call recursively and fill the index_first_child");
 
     // // The start of the current layer, where children.len() elements
     // // will be added just below

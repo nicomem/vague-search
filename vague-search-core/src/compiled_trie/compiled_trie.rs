@@ -17,7 +17,7 @@ use std::{borrow::Cow, ops::Range};
 pub struct CompiledTrie<'a> {
     pub(super) nodes: Cow<'a, [CompiledTrieNode]>,
     pub(super) chars: Cow<'a, str>,
-    pub(super) ranges: Cow<'a, [RangeElement]>,
+    pub(super) ranges: Cow<'a, [Option<RangeElement>]>,
 }
 
 impl CompiledTrie<'_> {
@@ -32,7 +32,7 @@ impl CompiledTrie<'_> {
     }
 
     /// Return a slice of the ranges array.
-    pub(crate) fn ranges(&self) -> &[RangeElement] {
+    pub(crate) fn ranges(&self) -> &[Option<RangeElement>] {
         &self.ranges
     }
 
@@ -59,7 +59,7 @@ impl CompiledTrie<'_> {
     }
 
     /// Get a range of nodes corresponding to a [RangeNode](crate::RangeNode).
-    pub fn get_range(&self, range: Range<IndexRange>) -> Option<&[RangeElement]> {
+    pub fn get_range(&self, range: Range<IndexRange>) -> Option<&[Option<RangeElement>]> {
         self.ranges.get(*range.start as usize..*range.end as usize)
     }
 
@@ -87,8 +87,10 @@ impl CompiledTrie<'_> {
     }
 }
 
-impl<'a> From<(&'a [CompiledTrieNode], &'a str, &'a [RangeElement])> for CompiledTrie<'a> {
-    fn from((nodes, chars, ranges): (&'a [CompiledTrieNode], &'a str, &'a [RangeElement])) -> Self {
+impl<'a> From<(&'a [CompiledTrieNode], &'a str, &'a [Option<RangeElement>])> for CompiledTrie<'a> {
+    fn from(
+        (nodes, chars, ranges): (&'a [CompiledTrieNode], &'a str, &'a [Option<RangeElement>]),
+    ) -> Self {
         CompiledTrie {
             nodes: Cow::Borrowed(nodes),
             chars: Cow::Borrowed(chars),

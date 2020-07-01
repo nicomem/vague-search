@@ -40,6 +40,7 @@ index_wrapper!(IndexChar);
 index_wrapper!(IndexRange);
 derive_new!(IndexNode);
 derive_new!(IndexChar);
+derive_new!(IndexRange);
 
 /// Same as [IndexNode](self::IndexNode) but cannot be 0.
 /// This enables some memory optimizations for [RangeElement](self::RangeElement).
@@ -53,6 +54,12 @@ impl From<IndexNodeNonZero> for IndexNode {
         Self {
             index: value.index.into(),
         }
+    }
+}
+
+impl IndexNodeNonZero {
+    pub(super) const fn new(index: NonZeroU32) -> Self {
+        Self { index }
     }
 }
 
