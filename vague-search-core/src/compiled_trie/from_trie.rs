@@ -19,6 +19,7 @@ fn add_chars(big_string: &mut String, chars: &str) -> Range<IndexChar> {
     start..end
 }
 
+#[derive(Debug, Eq, PartialEq)]
 enum TrieNode<'a, N: TrieNodeDrainer> {
     Simple(&'a N, char),
     Patricia(&'a N, String),
@@ -40,15 +41,70 @@ fn should_add_to_range(range: &[char], cur: char) -> bool {
         .map_or(false, |&last| char_dist(last, cur) <= MAX_DIST_IN_RANGE)
 }
 
+/// Drain the characters of the nodes to then be used in [node_type_heuristic](self::node_type_heuristic).
+/// We cannot call it there because it would make the return value have mutable reference to the nodes,
+/// limiting nodes manipulation after.
+fn extract_characters<N: TrieNodeDrainer>(nodes: &mut [N]) -> Vec<String> {
+    nodes.iter_mut().map(|n| n.drain_characters()).collect()
+}
+
+/// Function designed to be used in [node_type_heuristic](self::node_type_heuristic).
+/// Process the characters in the range to either:
+/// - Do nothing (empty range)
+/// - Add a SimpleNode to the `res_nodes` (single character in the range)
+/// - Add a RangeNode to the `res_nodes` (multiple characters in the range)
+fn process_range<'a, N: TrieNodeDrainer>(
+    nodes: &'a [N],
+    cur_range: &mut Vec<char>,
+    res_nodes: &mut Vec<TrieNode<'a, N>>,
+    index_cur_node: usize,
+) {
+    match cur_range.len() {
+        0 => {}
+        1 => {
+            // There is only one character in the range => SimpleNode
+
+            // Get the simple node, since there is only one character in the range,
+            // the node is the one processed just before the current => index_cur_node - 1
+            debug_assert_ne!(index_cur_node, 0);
+            debug_assert!(index_cur_node <= nodes.len());
+            let simple_node = &nodes[index_cur_node - 1];
+
+            // Get the only character in the range and clear it
+            let simple_char = cur_range[0];
+            cur_range.clear();
+
+            // Add the node to the result vector
+            res_nodes.push(TrieNode::Simple(simple_node, simple_char));
+        }
+        _ => {
+            // There is multiple characters in the range => RangeNode
+
+            // Extract the range (and empty cur_range)
+            let mut finished_range = Vec::new();
+            std::mem::swap(cur_range, &mut finished_range);
+
+            // Create the slice of the nodes in the range
+            let range_len = finished_range.len();
+            debug_assert!(index_cur_node <= nodes.len());
+            debug_assert!(index_cur_node >= range_len);
+            let slice = &nodes[(index_cur_node - range_len)..index_cur_node];
+
+            // Push the finished range to the list of nodes to creates
+            res_nodes.push(TrieNode::Range(slice, finished_range));
+        }
+    }
+}
+
 /// Find the best node types to create from the given nodes.
-fn node_type_heuristic<'a, N: TrieNodeDrainer>(nodes: &'a mut [N]) -> Vec<TrieNode<'a, N>> {
+fn node_type_heuristic<N: TrieNodeDrainer>(
+    nodes: &[N],
+    nodes_chars: Vec<String>,
+) -> Vec<TrieNode<'_, N>> {
     let mut res_nodes = Vec::new();
     let mut cur_range = Vec::new();
 
-    // Drain the characters before looping to avoid the mutable reference to the nodes
-    let node_chars: Vec<String> = nodes.iter_mut().map(|n| n.drain_characters()).collect();
-
-    'for_nodes: for (i, (node, chars)) in nodes.iter().zip(node_chars).enumerate() {
+    'for_nodes: for (i, (node, chars)) in nodes.iter().zip(nodes_chars).enumerate() {
         let is_one_char = chars.chars().nth(1).is_none();
         let first_char = chars.chars().nth(0);
 
@@ -62,26 +118,8 @@ fn node_type_heuristic<'a, N: TrieNodeDrainer>(nodes: &'a mut [N]) -> Vec<TrieNo
 
             // This node has been assigned, we can continue with the next
             continue 'for_nodes;
-        } else if cur_range.len() == 1 {
-            // There is only one character in the range => SimpleNode
-
-            // Get the simple node, since there is only one character in the range,
-            // the node is the one processed just before the current => i - 1
-            let simple_node = &nodes[i - 1];
-            res_nodes.push(TrieNode::Simple(simple_node, first_char.unwrap()));
         } else {
-            // There is multiple characters in the range => RangeNode
-
-            // Extract the range (and empty cur_range)
-            let mut finished_range = Vec::new();
-            cur_range.swap_with_slice(&mut finished_range);
-
-            // Create the slice of the nodes in the range
-            let range_len = finished_range.len();
-            let slice = &nodes[(i - range_len)..i];
-
-            // Push the finished range to the list of nodes to creates
-            res_nodes.push(TrieNode::Range(slice, finished_range));
+            process_range(nodes, &mut cur_range, &mut res_nodes, i);
         }
 
         // Process the current node
@@ -93,6 +131,8 @@ fn node_type_heuristic<'a, N: TrieNodeDrainer>(nodes: &'a mut [N]) -> Vec<TrieNo
             res_nodes.push(TrieNode::Patricia(node, chars))
         }
     }
+
+    process_range(nodes, &mut cur_range, &mut res_nodes, nodes.len());
 
     res_nodes
 }
@@ -182,5 +222,81 @@ impl<N: TrieNodeDrainer> From<N> for CompiledTrie<'_> {
             chars: Cow::Owned(big_string),
             ranges: Cow::Owned(ranges),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::num::NonZeroU32;
+
+    #[derive(Debug, Default, Clone, Eq, PartialEq)]
+    struct NodeDrainer {
+        pub characters: String,
+        pub frequency: Option<NonZeroU32>,
+        pub children: Vec<Self>,
+    }
+
+    impl TrieNodeDrainer for NodeDrainer {
+        fn drain_characters(&mut self) -> String {
+            let mut ret = String::new();
+            std::mem::swap(&mut self.characters, &mut ret);
+            assert_ne!(ret.len(), 0);
+            assert_eq!(self.characters.len(), 0);
+            ret
+        }
+
+        fn frequency(&self) -> Option<NonZeroU32> {
+            self.frequency
+        }
+
+        fn drain_children(&mut self) -> Vec<Self> {
+            let mut ret = Vec::new();
+            self.children.swap_with_slice(&mut ret);
+            assert_ne!(ret.len(), 0);
+            assert_eq!(self.children.len(), 0);
+            ret
+        }
+    }
+
+    fn create_simple(character: char) -> NodeDrainer {
+        NodeDrainer {
+            characters: character.to_string(),
+            frequency: None,
+            children: vec![],
+        }
+    }
+
+    fn test_nodes(
+        nodes: &Vec<NodeDrainer>,
+        nodes_chars: Vec<String>,
+        target: Vec<TrieNode<NodeDrainer>>,
+    ) {
+        let nb_nodes = nodes.len();
+        let ret = node_type_heuristic(nodes, nodes_chars);
+        assert_eq!(nodes.len(), nb_nodes);
+        assert_eq!(ret, target);
+    }
+
+    #[test]
+    fn test_heuristic_empty() {
+        let mut nodes: Vec<NodeDrainer> = vec![];
+        let nodes_chars = extract_characters(&mut nodes);
+        let _ = test_nodes(&nodes, nodes_chars, vec![]);
+    }
+
+    #[test]
+    fn test_heuristic_all_simple() {
+        let mut nodes = vec![create_simple('a'), create_simple('z'), create_simple('🀄')];
+        let nodes_chars = extract_characters(&mut nodes);
+        test_nodes(
+            &nodes,
+            nodes_chars,
+            vec![
+                TrieNode::Simple(&nodes[0], 'a'),
+                TrieNode::Simple(&nodes[1], 'z'),
+                TrieNode::Simple(&nodes[2], '🀄'),
+            ],
+        );
     }
 }
