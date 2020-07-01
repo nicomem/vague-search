@@ -6,16 +6,6 @@
 
 use std::{num::NonZeroU32, ops::Deref};
 
-/// An element of the range array, accessible via a [RangeNode](crate::RangeNode).
-#[derive(Debug, Clone)]
-pub struct RangeElement {
-    /// The index of the first child in the node array.
-    pub index_first_child: IndexNode,
-
-    /// The word frequency. If None, the word does not exist in the dictionary.
-    pub word_freq: Option<NonZeroU32>,
-}
-
 // Macro to implement slice indexing for corresponding index wrappers
 macro_rules! index_wrapper {
     ($index:ident) => {
@@ -50,3 +40,32 @@ index_wrapper!(IndexChar);
 index_wrapper!(IndexRange);
 derive_new!(IndexNode);
 derive_new!(IndexChar);
+
+/// Same as [IndexNode](self::IndexNode) but cannot be 0.
+/// This enables some memory optimizations for [RangeElement](self::RangeElement).
+#[derive(Debug, Copy, Clone)]
+pub struct IndexNodeNonZero {
+    index: NonZeroU32,
+}
+
+impl From<IndexNodeNonZero> for IndexNode {
+    fn from(value: IndexNodeNonZero) -> Self {
+        Self {
+            index: value.index.into(),
+        }
+    }
+}
+
+/// An element of the range array, accessible via a [RangeNode](crate::RangeNode).
+/// Since `index_first_child` cannot have the value 0, the struct can be contained
+/// inside an Option without using more memory.
+#[derive(Debug, Clone)]
+pub struct RangeElement {
+    /// The index of the first child in the node array.
+    /// This index could not be equal to 0 because the 0th node is the trie root,
+    /// which is a child to none.
+    pub index_first_child: IndexNodeNonZero,
+
+    /// The word frequency. If None, the word does not exist in the dictionary.
+    pub word_freq: Option<NonZeroU32>,
+}

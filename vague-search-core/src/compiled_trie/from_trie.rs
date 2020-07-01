@@ -2,6 +2,13 @@ use crate::{trie::trie_node_interface::TrieNodeDrainer, *};
 use std::{borrow::Cow, ops::Range};
 use utils::char_dist;
 
+#[derive(Debug, Eq, PartialEq)]
+enum TrieNode<'a, N: TrieNodeDrainer> {
+    Simple(&'a N, char),
+    Patricia(&'a N, String),
+    Range(&'a [N], Vec<char>),
+}
+
 /// Add the characters to the vector and return its range of index.
 /// If the characters are already present in the vector, it may not insert them
 /// and instead return the already present characters range of index.
@@ -19,11 +26,14 @@ fn add_chars(big_string: &mut String, chars: &str) -> Range<IndexChar> {
     start..end
 }
 
-#[derive(Debug, Eq, PartialEq)]
-enum TrieNode<'a, N: TrieNodeDrainer> {
-    Simple(&'a N, char),
-    Patricia(&'a N, String),
-    Range(&'a [N], Vec<char>),
+/// Add a range to the trie ranges, and return its range of index and first character.
+/// The create
+fn add_empty_range<N: TrieNodeDrainer>(
+    trie_ranges: &mut Vec<RangeElement>,
+    nodes: &[N],
+    range_chars: &[char],
+) -> (Range<IndexRange>, char) {
+    todo!()
 }
 
 /// Check if the current character should be added to the current range.
@@ -141,68 +151,107 @@ fn node_type_heuristic<N: TrieNodeDrainer>(
 /// to the three [CompiledTrie](crate::CompiledTrie) vectors.
 fn fill_from_trie<N: TrieNodeDrainer>(
     mut node: N,
-    nodes: &mut Vec<CompiledTrieNode>,
-    big_string: &mut String,
-    ranges: &mut Vec<RangeElement>,
+    trie_nodes: &mut Vec<CompiledTrieNode>,
+    trie_chars: &mut String,
+    trie_ranges: &mut Vec<RangeElement>,
 ) {
-    todo!("Replace with the heuristic");
+    const DUMMY_INDEX: IndexNode = IndexNode::new(0);
 
-    // The start of the current layer, where children.len() elements
-    // will be added just below
-    let layer_start = nodes.len();
+    // Drain the children from the node and their characters
     let mut children = node.drain_children();
-    let nb_children = children.len();
+    let children_chars = extract_characters(&mut children);
+    let heuristics = node_type_heuristic(&children, children_chars);
 
-    // Fill the current node layer, without the index_first_child
-    for (i, child) in children.iter_mut().enumerate() {
-        let node_chars = child.drain_characters();
-        let nb_siblings = (nb_children - i - 1) as u32;
-        let word_freq = child.frequency();
-
-        // Dummy value since only known after recursion
-        let index_first_child = IndexNode::new(0);
-
-        let node = if node_chars.len() == 1 {
-            CompiledTrieNode::NaiveNode(NaiveNode {
+    // Partially create the nodes in the heuristics.
+    // Fill all information available without recursion.
+    for (i, heuristic) in heuristics.iter().enumerate() {
+        let nb_siblings = (heuristics.len() - i) as u32;
+        let node = match heuristic {
+            TrieNode::Simple(node, c) => CompiledTrieNode::NaiveNode(NaiveNode {
                 nb_siblings,
-                index_first_child,
-                word_freq,
-                character: node_chars.chars().nth(0).unwrap(),
-            })
-        } else {
-            let char_range = add_chars(big_string, &node_chars);
-            CompiledTrieNode::PatriciaNode(PatriciaNode {
-                nb_siblings,
-                index_first_child,
-                word_freq,
-                char_range,
-            })
+                index_first_child: DUMMY_INDEX,
+                word_freq: node.frequency(),
+                character: *c,
+            }),
+            TrieNode::Patricia(node, node_chars) => {
+                let char_range = add_chars(trie_chars, node_chars);
+                CompiledTrieNode::PatriciaNode(PatriciaNode {
+                    nb_siblings,
+                    index_first_child: DUMMY_INDEX,
+                    word_freq: node.frequency(),
+                    char_range,
+                })
+            }
+            TrieNode::Range(nodes, range_chars) => {
+                let (range, first_char) = add_empty_range(trie_ranges, nodes, range_chars);
+                CompiledTrieNode::RangeNode(RangeNode {
+                    nb_siblings,
+                    first_char,
+                    range,
+                })
+            }
         };
 
-        // TODO: RangeNode
-
-        nodes.push(node);
+        trie_nodes.push(node);
     }
+    todo!("Replace with the heuristic");
 
-    // Call recursively for the children
-    for (i, child) in children.into_iter().enumerate() {
-        // The first child will be placed at the next index in the nodes vector
-        let index_first_child = nodes.len();
+    // // The start of the current layer, where children.len() elements
+    // // will be added just below
+    // let layer_start = trie_nodes.len();
+    // let mut children = node.drain_children();
+    // let nb_children = children.len();
 
-        // Call recursively with for the current node
-        fill_from_trie(child, nodes, big_string, ranges);
+    // // Fill the current node layer, without the index_first_child
+    // for (i, child) in children.iter_mut().enumerate() {
+    //     let node_chars = child.drain_characters();
+    //     let nb_siblings = (nb_children - i - 1) as u32;
+    //     let word_freq = child.frequency();
 
-        // Update the current node with the correct information
-        match nodes[layer_start + i] {
-            CompiledTrieNode::NaiveNode(ref mut n) => {
-                n.index_first_child = IndexNode::new(index_first_child as u32)
-            }
-            CompiledTrieNode::PatriciaNode(ref mut n) => {
-                n.index_first_child = IndexNode::new(index_first_child as u32)
-            }
-            CompiledTrieNode::RangeNode(_) => todo!("No range node currently"),
-        }
-    }
+    //     // Dummy value since only known after recursion
+    //     let index_first_child = IndexNode::new(0);
+
+    //     let node = if node_chars.len() == 1 {
+    //         CompiledTrieNode::NaiveNode(NaiveNode {
+    //             nb_siblings,
+    //             index_first_child,
+    //             word_freq,
+    //             character: node_chars.chars().nth(0).unwrap(),
+    //         })
+    //     } else {
+    //         let char_range = add_chars(trie_chars, &node_chars);
+    //         CompiledTrieNode::PatriciaNode(PatriciaNode {
+    //             nb_siblings,
+    //             index_first_child,
+    //             word_freq,
+    //             char_range,
+    //         })
+    //     };
+
+    //     // TODO: RangeNode
+
+    //     trie_nodes.push(node);
+    // }
+
+    // // Call recursively for the children
+    // for (i, child) in children.into_iter().enumerate() {
+    //     // The first child will be placed at the next index in the nodes vector
+    //     let index_first_child = trie_nodes.len();
+
+    //     // Call recursively with for the current node
+    //     fill_from_trie(child, trie_nodes, trie_chars, trie_ranges);
+
+    //     // Update the current node with the correct information
+    //     match trie_nodes[layer_start + i] {
+    //         CompiledTrieNode::NaiveNode(ref mut n) => {
+    //             n.index_first_child = IndexNode::new(index_first_child as u32)
+    //         }
+    //         CompiledTrieNode::PatriciaNode(ref mut n) => {
+    //             n.index_first_child = IndexNode::new(index_first_child as u32)
+    //         }
+    //         CompiledTrieNode::RangeNode(_) => todo!("No range node currently"),
+    //     }
+    // }
 }
 
 impl<N: TrieNodeDrainer> From<N> for CompiledTrie<'_> {
