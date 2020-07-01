@@ -267,6 +267,14 @@ mod test {
         }
     }
 
+    fn create_patricia(s: &str) -> NodeDrainer {
+        NodeDrainer {
+            characters: s.to_string(),
+            frequency: None,
+            children: vec![],
+        }
+    }
+
     fn test_nodes(
         nodes: &Vec<NodeDrainer>,
         nodes_chars: Vec<String>,
@@ -296,6 +304,138 @@ mod test {
                 TrieNode::Simple(&nodes[0], 'a'),
                 TrieNode::Simple(&nodes[1], 'z'),
                 TrieNode::Simple(&nodes[2], '🀄'),
+            ],
+        );
+    }
+
+    #[test]
+    fn test_heuristic_all_patricia() {
+        // A weird unicode string, taken from the famously :
+        // https://stackoverflow.com/questions/1732348/regex-match-open-tags-except-xhtml-self-contained-tags/1732454#1732454
+        const WEIRD_STRING: &str =
+            "NΘ stop the an​*̶͑̾̾​̅ͫ͏̙̤g͇̫͛͆̾ͫ̑͆l͖͉̗̩̳̟̍ͫͥͨe̠̅s ͎a̧͈͖r̽̾̈́͒͑e n​ot rè̑ͧ̌aͨl̘̝̙̃ͤ͂̾̆ ZA̡͊͠͝LGΌ ISͮ̂҉̯͈͕̹̘̱ TO͇̹̺ͅƝ̴ȳ̳ TH̘Ë͖́̉ ͠P̯͍̭O̚​N̐Y̡ H̸̡̪̯ͨ͊̽̅̾̎Ȩ̬̩̾͛ͪ̈́̀́͘ ̶̧̨̱̹̭̯ͧ̾ͬC̷̙̲̝͖ͭ̏ͥͮ͟Oͮ͏̮̪̝͍M̲̖͊̒ͪͩͬ̚̚͜Ȇ̴̟̟͙̞ͩ͌͝S̨̥̫͎̭ͯ̿̔̀ͅ";
+
+        let mut nodes = vec![
+            create_patricia("abaca"),
+            create_patricia("foobar"),
+            create_patricia(WEIRD_STRING),
+        ];
+        let nodes_chars = extract_characters(&mut nodes);
+        test_nodes(
+            &nodes,
+            nodes_chars,
+            vec![
+                TrieNode::Patricia(&nodes[0], "abaca".to_string()),
+                TrieNode::Patricia(&nodes[1], "foobar".to_string()),
+                TrieNode::Patricia(&nodes[2], WEIRD_STRING.to_string()),
+            ],
+        );
+    }
+
+    fn create_range_chars(range: Range<char>, step: usize) -> Vec<char> {
+        ((range.start as u32)..(range.end as u32))
+            .step_by(step)
+            .flat_map(std::char::from_u32)
+            .collect()
+    }
+
+    #[test]
+    fn test_heuristic_compact_ranges() {
+        let chars1 = create_range_chars('a'..'z', 1);
+        let nodes1: Vec<_> = chars1.iter().map(|&c| c).map(create_simple).collect();
+        let chars2 = create_range_chars('←'..'⇿', 1);
+        let nodes2: Vec<_> = chars2.iter().map(|&c| c).map(create_simple).collect();
+        let chars3 = create_range_chars('☀'..'⛿', 1);
+        let nodes3: Vec<_> = chars3.iter().map(|&c| c).map(create_simple).collect();
+        let mut nodes = nodes1
+            .into_iter()
+            .chain(nodes2)
+            .chain(nodes3)
+            .collect::<Vec<_>>();
+
+        let nodes_chars = extract_characters(&mut nodes);
+        let (len1, len2) = (chars1.len(), chars2.len());
+
+        assert_ne!(chars1.len(), 0);
+        assert_ne!(chars2.len(), 0);
+        assert_ne!(chars3.len(), 0);
+        assert_eq!(nodes.len(), chars1.len() + chars2.len() + chars3.len());
+
+        test_nodes(
+            &nodes,
+            nodes_chars,
+            vec![
+                TrieNode::Range(&nodes[..len1], chars1),
+                TrieNode::Range(&nodes[len1..(len1 + len2)], chars2),
+                TrieNode::Range(&nodes[(len1 + len2)..], chars3),
+            ],
+        );
+    }
+
+    #[test]
+    fn test_heuristic_partial_ranges() {
+        let chars1 = create_range_chars('a'..'z', 1);
+        let nodes1: Vec<_> = chars1.iter().map(|&c| c).map(create_simple).collect();
+        let chars2 = create_range_chars('←'..'⇿', 2);
+        let nodes2: Vec<_> = chars2.iter().map(|&c| c).map(create_simple).collect();
+        let chars3 = create_range_chars('☀'..'⛿', 3);
+        let nodes3: Vec<_> = chars3.iter().map(|&c| c).map(create_simple).collect();
+        let mut nodes = nodes1
+            .into_iter()
+            .chain(nodes2)
+            .chain(nodes3)
+            .collect::<Vec<_>>();
+
+        let nodes_chars = extract_characters(&mut nodes);
+        let (len1, len2) = (chars1.len(), chars2.len());
+
+        assert_ne!(chars1.len(), 0);
+        assert_ne!(chars2.len(), 0);
+        assert_ne!(chars3.len(), 0);
+        assert_eq!(nodes.len(), chars1.len() + chars2.len() + chars3.len());
+
+        test_nodes(
+            &nodes,
+            nodes_chars,
+            vec![
+                TrieNode::Range(&nodes[..len1], chars1),
+                TrieNode::Range(&nodes[len1..(len1 + len2)], chars2),
+                TrieNode::Range(&nodes[(len1 + len2)..], chars3),
+            ],
+        );
+    }
+
+    #[test]
+    fn test_heuristic_mixed() {
+        let chars1 = create_range_chars('←'..'⇿', 2);
+        let range1: Vec<_> = chars1.iter().map(|&c| c).map(create_simple).collect();
+
+        const WEIRD_STRING: &str =
+            "NΘ stop the an​*̶͑̾̾​̅ͫ͏̙̤g͇̫͛͆̾ͫ̑͆l͖͉̗̩̳̟̍ͫͥͨe̠̅s ͎a̧͈͖r̽̾̈́͒͑e n​ot rè̑ͧ̌aͨl̘̝̙̃ͤ͂̾̆ ZA̡͊͠͝LGΌ ISͮ̂҉̯͈͕̹̘̱ TO͇̹̺ͅƝ̴ȳ̳ TH̘Ë͖́̉ ͠P̯͍̭O̚​N̐Y̡ H̸̡̪̯ͨ͊̽̅̾̎Ȩ̬̩̾͛ͪ̈́̀́͘ ̶̧̨̱̹̭̯ͧ̾ͬC̷̙̲̝͖ͭ̏ͥͮ͟Oͮ͏̮̪̝͍M̲̖͊̒ͪͩͬ̚̚͜Ȇ̴̟̟͙̞ͩ͌͝S̨̥̫͎̭ͯ̿̔̀ͅ";
+
+        let parts = vec![
+            vec![
+                create_patricia("abaca"),
+                create_simple('b'),
+                create_patricia("foobar"),
+            ],
+            range1,
+            vec![create_patricia(WEIRD_STRING), create_simple('🀄')],
+        ];
+        let len1 = chars1.len();
+
+        let mut nodes: Vec<_> = parts.into_iter().flatten().collect();
+        let nodes_chars = extract_characters(&mut nodes);
+        test_nodes(
+            &nodes,
+            nodes_chars,
+            vec![
+                TrieNode::Patricia(&nodes[0], "abaca".to_string()),
+                TrieNode::Simple(&nodes[1], 'b'),
+                TrieNode::Patricia(&nodes[2], "foobar".to_string()),
+                TrieNode::Range(&nodes[3..(3 + len1)], chars1),
+                TrieNode::Patricia(&nodes[3 + len1], WEIRD_STRING.to_string()),
+                TrieNode::Simple(&nodes[4 + len1], '🀄'),
             ],
         );
     }

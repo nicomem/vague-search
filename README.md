@@ -7,6 +7,12 @@ An approximate search engine (project for the text-mining course).
 - Nicolas Mémeint
 - Tom Méchineau
 
+## Features
+
+- Fast
+- Support \< 512Mo of RAM
+- Compatible with **any** valid UTF-8 words
+
 ## Usage
 
 An example list of shell commands to build and run the project:
@@ -30,4 +36,10 @@ cat test.txt | ./TextMiningApp /path/to/dict.bin
 
 ```shell
 cargo doc --workspace --open
+```
+
+## Tests
+
+```shell
+cargo test --workspace
 ```
