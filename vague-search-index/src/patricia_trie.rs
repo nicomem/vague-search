@@ -3,30 +3,26 @@ use std::num::NonZeroU32;
 pub struct PatriciaNode {
     letters: String,
     children: Vec<PatriciaNode>,
-    pub freq: Option<NonZeroU32>,
+    freq: Option<NonZeroU32>,
 }
 
-pub fn indexDifference(first: &String, second: &String) -> u8
+pub fn indexDifference(first: &String, second: &String) -> Option<usize>
 {
-    let mut index: u8 = 0;
-    for (ai, bi) in first.chars().zip(second.chars()){
-        if ai != bi {
-            break;
-        }
-        index += 1;
-    }
-    index
+    first.chars().zip(second.chars()).position(|(a, b)| a != b)
 }
 
 impl PatriciaNode {
-    /**
-     * Divides a node by two in indicated index and creates the childs accordingly
-     */
-    fn divideNode(mut self, word: &String, ind: u8, frequency: NonZeroU32)
+    
+    ///  Divides a node by two in indicated index and creates the childs accordingly
+    fn divideNode(&mut self, word: &String, ind: usize, frequency: NonZeroU32)
     {
-        let (first_part, second_part) = self.letters.split_at(ind as usize);
-        let new_node = PatriciaNode {letters: second_part.to_string(), children: self.children, freq: self.freq};
-        let (_, second_word) = word.split_at(ind as usize);
+        let (first_part, second_part) = self.letters.split_at(ind);
+        
+        let mut new_node = PatriciaNode {letters: second_part.to_string(), children: Vec::new(), freq: self.freq};
+        // Swap children
+        std::mem::swap(&mut self.children, &mut new_node.children);
+
+        let (_, second_word) = word.split_at(ind);
         self.children = vec![new_node];
         self.freq = None;
         self.letters = first_part.to_string();
@@ -41,52 +37,38 @@ impl PatriciaNode {
         }
     }
 
-    pub(crate) fn insert(&mut self, word: String, frequency: NonZeroU32) {
+    pub(crate) fn insert(&mut self, word: &String, frequency: NonZeroU32) {
         let mut parent: &mut PatriciaNode= self;
-        let word_cpy = word;
 
-        if parent.children.is_empty() {
-            let node = PatriciaNode{letters: word_cpy, children: Vec::new(), freq: None};
-            parent.children.push(node);
-            return;
-        }
-        let mut node = None;
+        // otherwise we must loop on the potential cases
         loop {
-            node = None;
-            let mut ind = 0;
+            let mut index_diff = Some(0);
+            let mut index_child: usize = 0;
+
             for child in &mut parent.children {
-                ind = indexDifference(&child.letters, &word_cpy);
-                if ind != 0 {
-                    node = Some(child);
-                    break
-                }
-            }
-            if let Some(n) = node {
-                // Divide current node in two and insert the rest of the word if not empty
-                    //let mut actual_node = node.unwrap().to_owned();
-                    if n.letters.len() != ind as usize {
-                        n.divideNode(&word_cpy, ind, frequency);
-                        break;
+                index_diff = indexDifference(&child.letters, &word);
+                match index_diff {
+                    Some(ind) => {
+                        if ind != child.letters.len() && ind != 0 {
+                            child.divideNode(&word, ind, frequency);
+                            return
+                        }
+                        else if ind != 0{
+                            break;
+                        }
                     }
-            
-                    // Switch parent node if word is fully matched for the next iteration
-                    parent = n;
+                    None => { break; }
+                }
+                index_child += 1;
             }
-            else {
-                node = None;
-                let child = PatriciaNode{letters: word_cpy, children: Vec::new(), freq: None};
+            if index_diff.is_some() && index_diff.unwrap() == 0 {
+                let child = PatriciaNode{letters: word.clone(), children: Vec::new(), freq: None};
                 parent.children.push(child);
-                break
+                break;
             }
+            
+            parent = parent.children.get_mut(index_child).unwrap()
         }
         
     }
 }
-
-/*
-For children:
- parcours word, if first letter does not match do not use
- if first letter match till last letter or till it does
- not match anymore
- if none match create a new 
-*/
