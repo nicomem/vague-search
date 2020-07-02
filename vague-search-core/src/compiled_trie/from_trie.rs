@@ -179,18 +179,17 @@ fn node_type_heuristic<N: TrieNodeDrainer>(
     res_nodes
 }
 
+/// Create a node which has no information about its first child index.
 fn create_partial_node<N: TrieNodeDrainer>(
     nb_siblings: u32,
     heuristic: TrieNode<N>,
     trie_chars: &mut String,
     trie_ranges: &mut Vec<Option<RangeElement>>,
 ) -> CompiledTrieNode {
-    const DUMMY_INDEX: IndexNode = IndexNode::new(54321);
-
     match heuristic {
         TrieNode::Simple(node, character) => CompiledTrieNode::NaiveNode(NaiveNode {
             nb_siblings,
-            index_first_child: DUMMY_INDEX,
+            index_first_child: None,
             word_freq: node.frequency(),
             character,
         }),
@@ -198,7 +197,7 @@ fn create_partial_node<N: TrieNodeDrainer>(
             let char_range = add_chars(trie_chars, &node_chars);
             CompiledTrieNode::PatriciaNode(PatriciaNode {
                 nb_siblings,
-                index_first_child: DUMMY_INDEX,
+                index_first_child: None,
                 word_freq: node.frequency(),
                 char_range,
             })
@@ -253,12 +252,12 @@ fn fill_from_trie<N: TrieNodeDrainer>(
         match trie_nodes[partial_i] {
             CompiledTrieNode::PatriciaNode(ref mut n) => {
                 // Fill the partial node and advance to the next
-                n.index_first_child = IndexNode::new(index_first_child);
+                n.index_first_child = NonZeroU32::new(index_first_child).map(IndexNodeNonZero::new);
                 partial_i += 1;
             }
             CompiledTrieNode::NaiveNode(ref mut n) => {
                 // Fill the partial node and advance to the next
-                n.index_first_child = IndexNode::new(index_first_child);
+                n.index_first_child = NonZeroU32::new(index_first_child).map(IndexNodeNonZero::new);
                 partial_i += 1;
             }
             CompiledTrieNode::RangeNode(ref n) => {
@@ -555,27 +554,68 @@ mod test {
 
     #[test]
     fn test_from_empty() {
-        let root = NodeDrainer {
-            characters: "".to_string(),
-            frequency: None,
-            children: vec![],
-        };
+        let root = create_simple('-', 0, vec![]);
         let target_nodes = vec![];
         let target_chars = "";
         let target_ranges = vec![];
         run_assert_from(root, &target_nodes, target_chars, &target_ranges);
     }
 
-    // #[test]
-    // fn test_from_all_simples() {
-    //     let root = NodeDrainer {
-    //         characters: "".to_string(),
-    //         frequency: None,
-    //         children: vec![NodeDrainer {}],
-    //     };
-    //     let target_nodes = vec![];
-    //     let target_chars = "";
-    //     let target_ranges = vec![];
-    //     run_assert_from(root, &target_nodes, target_chars, &target_ranges);
-    // }
+    #[test]
+    fn test_from_all_simples() {
+        let root = create_simple(
+            '-',
+            0,
+            vec![
+                create_simple(
+                    'a',
+                    1,
+                    vec![create_simple('a', 2, vec![]), create_simple('h', 1, vec![])],
+                ),
+                create_simple('h', 0, vec![create_simple('a', 1, vec![])]),
+                create_simple('z', 5, vec![]),
+            ],
+        );
+        let target_nodes = vec![
+            CompiledTrieNode::NaiveNode(NaiveNode {
+                nb_siblings: 2,
+                index_first_child: NonZeroU32::new(3).map(IndexNodeNonZero::new),
+                word_freq: Some(NonZeroU32::new(1).unwrap()),
+                character: 'a',
+            }),
+            CompiledTrieNode::NaiveNode(NaiveNode {
+                nb_siblings: 2,
+                index_first_child: NonZeroU32::new(3).map(IndexNodeNonZero::new),
+                word_freq: Some(NonZeroU32::new(1).unwrap()),
+                character: 'a',
+            }),
+            CompiledTrieNode::NaiveNode(NaiveNode {
+                nb_siblings: 2,
+                index_first_child: NonZeroU32::new(3).map(IndexNodeNonZero::new),
+                word_freq: Some(NonZeroU32::new(1).unwrap()),
+                character: 'a',
+            }),
+            CompiledTrieNode::NaiveNode(NaiveNode {
+                nb_siblings: 2,
+                index_first_child: NonZeroU32::new(3).map(IndexNodeNonZero::new),
+                word_freq: Some(NonZeroU32::new(1).unwrap()),
+                character: 'a',
+            }),
+            CompiledTrieNode::NaiveNode(NaiveNode {
+                nb_siblings: 2,
+                index_first_child: NonZeroU32::new(3).map(IndexNodeNonZero::new),
+                word_freq: Some(NonZeroU32::new(1).unwrap()),
+                character: 'a',
+            }),
+            CompiledTrieNode::NaiveNode(NaiveNode {
+                nb_siblings: 2,
+                index_first_child: NonZeroU32::new(3).map(IndexNodeNonZero::new),
+                word_freq: Some(NonZeroU32::new(1).unwrap()),
+                character: 'a',
+            }),
+        ];
+        let target_chars = "";
+        let target_ranges = vec![];
+        run_assert_from(root, &target_nodes, target_chars, &target_ranges);
+    }
 }

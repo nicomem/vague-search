@@ -35,10 +35,8 @@ macro_rules! derive_new {
     };
 }
 
-index_wrapper!(IndexNode);
 index_wrapper!(IndexChar);
 index_wrapper!(IndexRange);
-derive_new!(IndexNode);
 derive_new!(IndexChar);
 derive_new!(IndexRange);
 
@@ -49,11 +47,9 @@ pub struct IndexNodeNonZero {
     index: NonZeroU32,
 }
 
-impl From<IndexNodeNonZero> for IndexNode {
+impl From<IndexNodeNonZero> for u32 {
     fn from(value: IndexNodeNonZero) -> Self {
-        Self {
-            index: value.index.into(),
-        }
+        value.index.into()
     }
 }
 

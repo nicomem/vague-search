@@ -36,21 +36,14 @@ impl CompiledTrie<'_> {
         &self.ranges
     }
 
-    /// Return the index of the root
-    pub const fn root(&self) -> IndexNode {
-        IndexNode::new(0)
+    /// Return the root node.
+    pub fn root(&self) -> Option<&CompiledTrieNode> {
+        self.nodes.get(0)
     }
 
-    /// Get a node and its *right* siblings from the trie.
-    pub fn get_siblings(&self, index: IndexNode) -> Option<&[CompiledTrieNode]> {
-        let nb_siblings = self
-            .nodes
-            .get(*index as usize)
-            .map(CompiledTrieNode::nb_siblings);
-
-        let range = nb_siblings.map(|len| *index as usize..(*index + len) as usize);
-
-        range.map(|r| self.nodes.get(r)).flatten()
+    /// Get a node from the trie.
+    pub fn get_node(&self, index: IndexNodeNonZero) -> Option<&CompiledTrieNode> {
+        self.nodes.get(u32::from(index) as usize)
     }
 
     /// Get a range of characters of a [PatriciaNode](crate::PatriciaNode).
@@ -61,29 +54,6 @@ impl CompiledTrie<'_> {
     /// Get a range of nodes corresponding to a [RangeNode](crate::RangeNode).
     pub fn get_range(&self, range: Range<IndexRange>) -> Option<&[Option<RangeElement>]> {
         self.ranges.get(*range.start as usize..*range.end as usize)
-    }
-
-    /// Try to get the index of the first child of a sibling of the current index.
-    /// If the offset is out-of-bound, return None.
-    pub fn index_child_of_sibling(
-        &self,
-        current_index: IndexNode,
-        sibling_offset: u32,
-    ) -> Option<IndexNode> {
-        self.nodes
-            .get(*current_index as usize)
-            .filter(|node| sibling_offset < node.nb_siblings() as u32)
-            .map(|_| self.index_child_of_sibling_unchecked(current_index, sibling_offset))
-    }
-
-    /// Same as [index_child_of_sibling](crate::CompiledTrie::index_child_of_sibling)
-    /// but no out-of-bound checks are done.
-    pub fn index_child_of_sibling_unchecked(
-        &self,
-        current_index: IndexNode,
-        sibling_offset: u32,
-    ) -> IndexNode {
-        IndexNode::new(*current_index + sibling_offset)
     }
 }
 

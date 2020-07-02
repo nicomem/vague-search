@@ -10,7 +10,7 @@ pub struct PatriciaNode {
     pub nb_siblings: u32,
 
     /// The index of the first child in the node array.
-    pub index_first_child: IndexNode,
+    pub index_first_child: Option<IndexNodeNonZero>,
 
     /// The word frequency. If None, the word does not exist in the dictionary.
     pub word_freq: Option<NonZeroU32>,
@@ -27,7 +27,7 @@ pub struct NaiveNode {
     pub nb_siblings: u32,
 
     /// The index of the first child in the node array.
-    pub index_first_child: IndexNode,
+    pub index_first_child: Option<IndexNodeNonZero>,
 
     /// The word frequency. If None, the word does not exist in the dictionary.
     pub word_freq: Option<NonZeroU32>,
