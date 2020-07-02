@@ -7,38 +7,49 @@
 use std::{num::NonZeroU32, ops::Deref};
 
 // Macro to implement slice indexing for corresponding index wrappers
-macro_rules! index_wrapper {
-    ($index:ident) => {
-        /// Represent a valid index in the [CompiledTrie](crate::CompiledTrie) corresponding array.
-        #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-        pub struct $index {
-            index: u32,
-        }
-
-        impl Deref for $index {
-            type Target = u32;
-
-            fn deref(&self) -> &Self::Target {
-                &self.index
+macro_rules! index_wrappers {
+    ($( $index:ident ),*) => {
+        $(
+            /// Represent a valid index in the [CompiledTrie](crate::CompiledTrie) corresponding array.
+            #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+            pub struct $index {
+                index: u32,
             }
-        }
+
+            impl Deref for $index {
+                type Target = u32;
+
+                fn deref(&self) -> &Self::Target {
+                    &self.index
+                }
+            }
+        )*
     };
 }
 
 macro_rules! derive_new {
-    ($index:ident) => {
-        impl $index {
-            pub(super) const fn new(index: u32) -> Self {
-                Self { index }
+    ($ret:ident, $( $index:ident ),*) => {
+        $(
+            impl $index {
+                pub(super) const fn new(index: $ret) -> Self {
+                    Self { index }
+                }
             }
-        }
+        )*
     };
 }
 
-index_wrapper!(IndexChar);
-index_wrapper!(IndexRange);
-derive_new!(IndexChar);
-derive_new!(IndexRange);
+macro_rules! derive_from {
+    ($index: ident, $( $into: ident ),+) => {
+        $(
+            impl From<$index> for $into {
+                fn from(value: $index) -> Self {
+                    u32::from(value.index) as $into
+                }
+            }
+        )*
+    };
+}
 
 /// Same as [IndexNode](self::IndexNode) but cannot be 0.
 /// This enables some memory optimizations for [RangeElement](self::RangeElement).
@@ -47,17 +58,12 @@ pub struct IndexNodeNonZero {
     index: NonZeroU32,
 }
 
-impl From<IndexNodeNonZero> for u32 {
-    fn from(value: IndexNodeNonZero) -> Self {
-        value.index.into()
-    }
-}
-
-impl IndexNodeNonZero {
-    pub(super) const fn new(index: NonZeroU32) -> Self {
-        Self { index }
-    }
-}
+index_wrappers!(IndexChar, IndexRange);
+derive_new!(u32, IndexChar, IndexRange);
+derive_new!(NonZeroU32, IndexNodeNonZero);
+derive_from!(IndexChar, u32, u64, usize);
+derive_from!(IndexRange, u32, u64, usize);
+derive_from!(IndexNodeNonZero, u32, u64, usize);
 
 /// An element of the range array, accessible via a [RangeNode](crate::RangeNode).
 /// Since `index_first_child` cannot have the value 0, the struct can be contained

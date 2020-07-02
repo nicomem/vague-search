@@ -43,17 +43,17 @@ impl CompiledTrie<'_> {
 
     /// Get a node from the trie.
     pub fn get_node(&self, index: IndexNodeNonZero) -> Option<&CompiledTrieNode> {
-        self.nodes.get(u32::from(index) as usize)
+        self.nodes.get(usize::from(index))
     }
 
     /// Get a range of characters of a [PatriciaNode](crate::PatriciaNode).
     pub fn get_chars(&self, range: Range<IndexChar>) -> Option<&str> {
-        self.chars.get(*range.start as usize..*range.end as usize)
+        self.chars.get(range.start.into()..range.end.into())
     }
 
     /// Get a range of nodes corresponding to a [RangeNode](crate::RangeNode).
     pub fn get_range(&self, range: Range<IndexRange>) -> Option<&[Option<RangeElement>]> {
-        self.ranges.get(*range.start as usize..*range.end as usize)
+        self.ranges.get(range.start.into()..range.end.into())
     }
 }
 

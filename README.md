@@ -10,8 +10,16 @@ An approximate search engine (project for the text-mining course).
 ## Features
 
 - Fast
-- Support \< 512Mo of RAM
+- Low memory footprint
 - Compatible with **any** valid UTF-8 words
+
+## Pre-requisites
+
+- Latest (stable) Rust toolchain
+  - See [the Rust website](https://www.rust-lang.org/learn/get-started)
+- *optional* A POSIX-compatible OS
+  - If your OS is Windows or another non-POSIX OS, the entire compiled dictionary will be loaded,
+   instead of loading it dynamically via the `mmap` syscall
 
 ## Usage
 
