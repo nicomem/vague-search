@@ -179,6 +179,41 @@ fn node_type_heuristic<N: TrieNodeDrainer>(
     res_nodes
 }
 
+fn create_partial_node<N: TrieNodeDrainer>(
+    nb_siblings: u32,
+    heuristic: TrieNode<N>,
+    trie_chars: &mut String,
+    trie_ranges: &mut Vec<Option<RangeElement>>,
+) -> CompiledTrieNode {
+    const DUMMY_INDEX: IndexNode = IndexNode::new(54321);
+
+    match heuristic {
+        TrieNode::Simple(node, character) => CompiledTrieNode::NaiveNode(NaiveNode {
+            nb_siblings,
+            index_first_child: DUMMY_INDEX,
+            word_freq: node.frequency(),
+            character,
+        }),
+        TrieNode::Patricia(node, node_chars) => {
+            let char_range = add_chars(trie_chars, &node_chars);
+            CompiledTrieNode::PatriciaNode(PatriciaNode {
+                nb_siblings,
+                index_first_child: DUMMY_INDEX,
+                word_freq: node.frequency(),
+                char_range,
+            })
+        }
+        TrieNode::Range(nodes, range_chars) => {
+            let (range, first_char) = add_range(trie_ranges, nodes, &range_chars);
+            CompiledTrieNode::RangeNode(RangeNode {
+                nb_siblings,
+                first_char,
+                range,
+            })
+        }
+    }
+}
+
 /// Append the information of the given node and its children
 /// to the three [CompiledTrie](crate::CompiledTrie) vectors.
 fn fill_from_trie<N: TrieNodeDrainer>(
@@ -187,110 +222,73 @@ fn fill_from_trie<N: TrieNodeDrainer>(
     trie_chars: &mut String,
     trie_ranges: &mut Vec<Option<RangeElement>>,
 ) {
-    const DUMMY_INDEX: IndexNode = IndexNode::new(54321);
-
     // Drain the children from the node and their characters
     let mut children = node.drain_children();
     let children_chars = extract_characters(&mut children);
     let heuristics = node_type_heuristic(&children, children_chars);
+    let nb_created_nodes = heuristics.len();
 
     // Partially create the nodes in the heuristics.
     // Fill all information available without recursion.
-    for (i, heuristic) in heuristics.iter().enumerate() {
-        let nb_siblings = (heuristics.len() - i) as u32;
-        let node = match heuristic {
-            TrieNode::Simple(node, c) => CompiledTrieNode::NaiveNode(NaiveNode {
-                nb_siblings,
-                index_first_child: DUMMY_INDEX,
-                word_freq: node.frequency(),
-                character: *c,
-            }),
-            TrieNode::Patricia(node, node_chars) => {
-                let char_range = add_chars(trie_chars, node_chars);
-                CompiledTrieNode::PatriciaNode(PatriciaNode {
-                    nb_siblings,
-                    index_first_child: DUMMY_INDEX,
-                    word_freq: node.frequency(),
-                    char_range,
-                })
-            }
-            TrieNode::Range(nodes, range_chars) => {
-                let (range, first_char) = add_range(trie_ranges, nodes, range_chars);
-                CompiledTrieNode::RangeNode(RangeNode {
-                    nb_siblings,
-                    first_char,
-                    range,
-                })
-            }
-        };
+    let partial_nodes =
+        (0u32..nb_created_nodes as u32)
+            .rev()
+            .zip(heuristics)
+            .map(|(nb_siblings, heuristic)| {
+                create_partial_node(nb_siblings, heuristic, trie_chars, trie_ranges)
+            });
+    trie_nodes.extend(partial_nodes);
 
-        trie_nodes.push(node);
+    // Call recursively and finish the partial nodes
+    let mut partial_i = trie_nodes.len() - nb_created_nodes;
+    let mut range_i = 0;
+    for child in children.into_iter() {
+        // The first child will be placed at the next index in the nodes vector
+        let index_first_child = trie_nodes.len() as u32;
+
+        // Call recursively with for the current node
+        fill_from_trie(child, trie_nodes, trie_chars, trie_ranges);
+
+        // Finish the current partial node
+        match trie_nodes[partial_i] {
+            CompiledTrieNode::PatriciaNode(ref mut n) => {
+                // Fill the partial node and advance to the next
+                n.index_first_child = IndexNode::new(index_first_child);
+                partial_i += 1;
+            }
+            CompiledTrieNode::NaiveNode(ref mut n) => {
+                // Fill the partial node and advance to the next
+                n.index_first_child = IndexNode::new(index_first_child);
+                partial_i += 1;
+            }
+            CompiledTrieNode::RangeNode(ref n) => {
+                // Get the index of the current element in the range
+                let i = (*n.range.start + range_i) as usize;
+                debug_assert!(i <= *n.range.end as usize);
+                // If the element is not None, fill it
+                if let Some(ref mut range_elem) = trie_ranges[i] {
+                    range_elem.index_first_child =
+                        IndexNodeNonZero::new(NonZeroU32::new(index_first_child).unwrap());
+                }
+
+                // If we just filled the last element, advance to the next partial node
+                // else advance in the range
+                if i as u32 == *n.range.end - 1 {
+                    partial_i += 1;
+                    range_i = 0;
+                } else {
+                    range_i += 1;
+                }
+            }
+        }
     }
-    todo!("Call recursively and fill the index_first_child");
-
-    // // The start of the current layer, where children.len() elements
-    // // will be added just below
-    // let layer_start = trie_nodes.len();
-    // let mut children = node.drain_children();
-    // let nb_children = children.len();
-
-    // // Fill the current node layer, without the index_first_child
-    // for (i, child) in children.iter_mut().enumerate() {
-    //     let node_chars = child.drain_characters();
-    //     let nb_siblings = (nb_children - i - 1) as u32;
-    //     let word_freq = child.frequency();
-
-    //     // Dummy value since only known after recursion
-    //     let index_first_child = IndexNode::new(0);
-
-    //     let node = if node_chars.len() == 1 {
-    //         CompiledTrieNode::NaiveNode(NaiveNode {
-    //             nb_siblings,
-    //             index_first_child,
-    //             word_freq,
-    //             character: node_chars.chars().nth(0).unwrap(),
-    //         })
-    //     } else {
-    //         let char_range = add_chars(trie_chars, &node_chars);
-    //         CompiledTrieNode::PatriciaNode(PatriciaNode {
-    //             nb_siblings,
-    //             index_first_child,
-    //             word_freq,
-    //             char_range,
-    //         })
-    //     };
-
-    //     // TODO: RangeNode
-
-    //     trie_nodes.push(node);
-    // }
-
-    // // Call recursively for the children
-    // for (i, child) in children.into_iter().enumerate() {
-    //     // The first child will be placed at the next index in the nodes vector
-    //     let index_first_child = trie_nodes.len();
-
-    //     // Call recursively with for the current node
-    //     fill_from_trie(child, trie_nodes, trie_chars, trie_ranges);
-
-    //     // Update the current node with the correct information
-    //     match trie_nodes[layer_start + i] {
-    //         CompiledTrieNode::NaiveNode(ref mut n) => {
-    //             n.index_first_child = IndexNode::new(index_first_child as u32)
-    //         }
-    //         CompiledTrieNode::PatriciaNode(ref mut n) => {
-    //             n.index_first_child = IndexNode::new(index_first_child as u32)
-    //         }
-    //         CompiledTrieNode::RangeNode(_) => todo!("No range node currently"),
-    //     }
-    // }
 }
 
 impl<N: TrieNodeDrainer> From<N> for CompiledTrie<'_> {
     fn from(root: N) -> Self {
         const NODES_INIT_CAP: usize = 256;
         const CHARS_INIT_CAP: usize = 256;
-        const RANGES_INIT_CAP: usize = 0; // TODO: no ranges currently
+        const RANGES_INIT_CAP: usize = 256;
 
         let mut nodes = Vec::with_capacity(NODES_INIT_CAP);
         let mut big_string = String::with_capacity(CHARS_INIT_CAP);
@@ -320,10 +318,17 @@ mod test {
 
     impl TrieNodeDrainer for NodeDrainer {
         fn drain_characters(&mut self) -> String {
+            let nb_chars_before = self.characters.len();
+
             let mut ret = String::new();
             std::mem::swap(&mut self.characters, &mut ret);
-            assert_ne!(ret.len(), 0);
-            assert_eq!(self.characters.len(), 0);
+
+            if nb_chars_before == 0 {
+                assert_eq!(ret, String::new());
+            } else {
+                assert_eq!(ret.len(), nb_chars_before);
+            }
+            assert_eq!(self.characters, String::new());
             ret
         }
 
@@ -332,31 +337,38 @@ mod test {
         }
 
         fn drain_children(&mut self) -> Vec<Self> {
+            let nb_children_before = self.children.len();
+
             let mut ret = Vec::new();
-            self.children.swap_with_slice(&mut ret);
-            assert_ne!(ret.len(), 0);
-            assert_eq!(self.children.len(), 0);
+            std::mem::swap(&mut self.children, &mut ret);
+
+            if nb_children_before == 0 {
+                assert_eq!(ret, vec![]);
+            } else {
+                assert_eq!(ret.len(), nb_children_before);
+            }
+            assert_eq!(self.children, vec![]);
             ret
         }
     }
 
-    fn create_simple(character: char) -> NodeDrainer {
+    fn create_simple(character: char, freq: u32, children: Vec<NodeDrainer>) -> NodeDrainer {
         NodeDrainer {
             characters: character.to_string(),
-            frequency: None,
-            children: vec![],
+            frequency: NonZeroU32::new(freq),
+            children,
         }
     }
 
-    fn create_patricia(s: &str) -> NodeDrainer {
+    fn create_patricia(s: &str, freq: u32, children: Vec<NodeDrainer>) -> NodeDrainer {
         NodeDrainer {
             characters: s.to_string(),
-            frequency: None,
-            children: vec![],
+            frequency: NonZeroU32::new(freq),
+            children,
         }
     }
 
-    fn test_nodes(
+    fn run_assert_heuristic(
         nodes: &Vec<NodeDrainer>,
         nodes_chars: Vec<String>,
         target: Vec<TrieNode<NodeDrainer>>,
@@ -371,14 +383,18 @@ mod test {
     fn test_heuristic_empty() {
         let mut nodes: Vec<NodeDrainer> = vec![];
         let nodes_chars = extract_characters(&mut nodes);
-        let _ = test_nodes(&nodes, nodes_chars, vec![]);
+        let _ = run_assert_heuristic(&nodes, nodes_chars, vec![]);
     }
 
     #[test]
     fn test_heuristic_all_simple() {
-        let mut nodes = vec![create_simple('a'), create_simple('z'), create_simple('🀄')];
+        let mut nodes = vec![
+            create_simple('a', 0, vec![]),
+            create_simple('z', 0, vec![]),
+            create_simple('🀄', 0, vec![]),
+        ];
         let nodes_chars = extract_characters(&mut nodes);
-        test_nodes(
+        run_assert_heuristic(
             &nodes,
             nodes_chars,
             vec![
@@ -397,12 +413,12 @@ mod test {
             "NΘ stop the an​*̶͑̾̾​̅ͫ͏̙̤g͇̫͛͆̾ͫ̑͆l͖͉̗̩̳̟̍ͫͥͨe̠̅s ͎a̧͈͖r̽̾̈́͒͑e n​ot rè̑ͧ̌aͨl̘̝̙̃ͤ͂̾̆ ZA̡͊͠͝LGΌ ISͮ̂҉̯͈͕̹̘̱ TO͇̹̺ͅƝ̴ȳ̳ TH̘Ë͖́̉ ͠P̯͍̭O̚​N̐Y̡ H̸̡̪̯ͨ͊̽̅̾̎Ȩ̬̩̾͛ͪ̈́̀́͘ ̶̧̨̱̹̭̯ͧ̾ͬC̷̙̲̝͖ͭ̏ͥͮ͟Oͮ͏̮̪̝͍M̲̖͊̒ͪͩͬ̚̚͜Ȇ̴̟̟͙̞ͩ͌͝S̨̥̫͎̭ͯ̿̔̀ͅ";
 
         let mut nodes = vec![
-            create_patricia("abaca"),
-            create_patricia("foobar"),
-            create_patricia(WEIRD_STRING),
+            create_patricia("abaca", 0, vec![]),
+            create_patricia("foobar", 0, vec![]),
+            create_patricia(WEIRD_STRING, 0, vec![]),
         ];
         let nodes_chars = extract_characters(&mut nodes);
-        test_nodes(
+        run_assert_heuristic(
             &nodes,
             nodes_chars,
             vec![
@@ -413,21 +429,26 @@ mod test {
         );
     }
 
-    fn create_range_chars(range: Range<char>, step: usize) -> Vec<char> {
-        ((range.start as u32)..(range.end as u32))
+    fn create_range(range: Range<char>, step: usize) -> (Vec<char>, Vec<NodeDrainer>) {
+        let chars: Vec<char> = ((range.start as u32)..(range.end as u32))
             .step_by(step)
             .flat_map(std::char::from_u32)
-            .collect()
+            .collect();
+
+        let nodes = chars
+            .iter()
+            .map(|&c| c)
+            .map(|c| create_simple(c, 0, vec![]))
+            .collect();
+
+        (chars, nodes)
     }
 
     #[test]
     fn test_heuristic_compact_ranges() {
-        let chars1 = create_range_chars('a'..'z', 1);
-        let nodes1: Vec<_> = chars1.iter().map(|&c| c).map(create_simple).collect();
-        let chars2 = create_range_chars('←'..'⇿', 1);
-        let nodes2: Vec<_> = chars2.iter().map(|&c| c).map(create_simple).collect();
-        let chars3 = create_range_chars('☀'..'⛿', 1);
-        let nodes3: Vec<_> = chars3.iter().map(|&c| c).map(create_simple).collect();
+        let (chars1, nodes1) = create_range('a'..'z', 1);
+        let (chars2, nodes2) = create_range('←'..'⇿', 1);
+        let (chars3, nodes3) = create_range('☀'..'⛿', 1);
         let mut nodes = nodes1
             .into_iter()
             .chain(nodes2)
@@ -442,7 +463,7 @@ mod test {
         assert_ne!(chars3.len(), 0);
         assert_eq!(nodes.len(), chars1.len() + chars2.len() + chars3.len());
 
-        test_nodes(
+        run_assert_heuristic(
             &nodes,
             nodes_chars,
             vec![
@@ -455,12 +476,9 @@ mod test {
 
     #[test]
     fn test_heuristic_partial_ranges() {
-        let chars1 = create_range_chars('a'..'z', 1);
-        let nodes1: Vec<_> = chars1.iter().map(|&c| c).map(create_simple).collect();
-        let chars2 = create_range_chars('←'..'⇿', 2);
-        let nodes2: Vec<_> = chars2.iter().map(|&c| c).map(create_simple).collect();
-        let chars3 = create_range_chars('☀'..'⛿', 3);
-        let nodes3: Vec<_> = chars3.iter().map(|&c| c).map(create_simple).collect();
+        let (chars1, nodes1) = create_range('a'..'z', 1);
+        let (chars2, nodes2) = create_range('←'..'⇿', 2);
+        let (chars3, nodes3) = create_range('☀'..'⛿', 3);
         let mut nodes = nodes1
             .into_iter()
             .chain(nodes2)
@@ -475,7 +493,7 @@ mod test {
         assert_ne!(chars3.len(), 0);
         assert_eq!(nodes.len(), chars1.len() + chars2.len() + chars3.len());
 
-        test_nodes(
+        run_assert_heuristic(
             &nodes,
             nodes_chars,
             vec![
@@ -488,26 +506,28 @@ mod test {
 
     #[test]
     fn test_heuristic_mixed() {
-        let chars1 = create_range_chars('←'..'⇿', 2);
-        let range1: Vec<_> = chars1.iter().map(|&c| c).map(create_simple).collect();
+        let (chars1, nodes1) = create_range('←'..'⇿', 2);
 
         const WEIRD_STRING: &str =
             "NΘ stop the an​*̶͑̾̾​̅ͫ͏̙̤g͇̫͛͆̾ͫ̑͆l͖͉̗̩̳̟̍ͫͥͨe̠̅s ͎a̧͈͖r̽̾̈́͒͑e n​ot rè̑ͧ̌aͨl̘̝̙̃ͤ͂̾̆ ZA̡͊͠͝LGΌ ISͮ̂҉̯͈͕̹̘̱ TO͇̹̺ͅƝ̴ȳ̳ TH̘Ë͖́̉ ͠P̯͍̭O̚​N̐Y̡ H̸̡̪̯ͨ͊̽̅̾̎Ȩ̬̩̾͛ͪ̈́̀́͘ ̶̧̨̱̹̭̯ͧ̾ͬC̷̙̲̝͖ͭ̏ͥͮ͟Oͮ͏̮̪̝͍M̲̖͊̒ͪͩͬ̚̚͜Ȇ̴̟̟͙̞ͩ͌͝S̨̥̫͎̭ͯ̿̔̀ͅ";
 
         let parts = vec![
             vec![
-                create_patricia("abaca"),
-                create_simple('b'),
-                create_patricia("foobar"),
+                create_patricia("abaca", 0, vec![]),
+                create_simple('b', 0, vec![]),
+                create_patricia("foobar", 0, vec![]),
             ],
-            range1,
-            vec![create_patricia(WEIRD_STRING), create_simple('🀄')],
+            nodes1,
+            vec![
+                create_patricia(WEIRD_STRING, 0, vec![]),
+                create_simple('🀄', 0, vec![]),
+            ],
         ];
         let len1 = chars1.len();
 
         let mut nodes: Vec<_> = parts.into_iter().flatten().collect();
         let nodes_chars = extract_characters(&mut nodes);
-        test_nodes(
+        run_assert_heuristic(
             &nodes,
             nodes_chars,
             vec![
@@ -520,4 +540,42 @@ mod test {
             ],
         );
     }
+
+    fn run_assert_from(
+        root: NodeDrainer,
+        target_nodes: &[CompiledTrieNode],
+        target_chars: &str,
+        target_ranges: &[Option<RangeElement>],
+    ) {
+        let compiled = CompiledTrie::from(root);
+        assert_eq!(compiled.nodes(), target_nodes);
+        assert_eq!(compiled.chars(), target_chars);
+        assert_eq!(compiled.ranges(), target_ranges);
+    }
+
+    #[test]
+    fn test_from_empty() {
+        let root = NodeDrainer {
+            characters: "".to_string(),
+            frequency: None,
+            children: vec![],
+        };
+        let target_nodes = vec![];
+        let target_chars = "";
+        let target_ranges = vec![];
+        run_assert_from(root, &target_nodes, target_chars, &target_ranges);
+    }
+
+    // #[test]
+    // fn test_from_all_simples() {
+    //     let root = NodeDrainer {
+    //         characters: "".to_string(),
+    //         frequency: None,
+    //         children: vec![NodeDrainer {}],
+    //     };
+    //     let target_nodes = vec![];
+    //     let target_chars = "";
+    //     let target_ranges = vec![];
+    //     run_assert_from(root, &target_nodes, target_chars, &target_ranges);
+    // }
 }

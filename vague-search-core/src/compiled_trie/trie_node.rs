@@ -2,7 +2,7 @@ use super::index::*;
 use std::{num::NonZeroU32, ops::Range};
 
 /// A [CompiledTrie](crate::CompiledTrie) node following a Patricia trie structure.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PatriciaNode {
     /// The number of siblings of the node.
     /// The next sibling is located at the next index in the node array.
@@ -20,7 +20,7 @@ pub struct PatriciaNode {
 }
 
 /// A [CompiledTrie](crate::CompiledTrie) node following a naive trie structure.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct NaiveNode {
     /// The number of siblings of the node.
     /// The next sibling is located at the next index in the node array.
@@ -36,7 +36,7 @@ pub struct NaiveNode {
     pub character: char,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RangeNode {
     /// The number of siblings of the node.
     /// The next sibling is located at the next index in the node array.
@@ -52,7 +52,7 @@ pub struct RangeNode {
 /// A node of a compiled trie.
 /// Can be of different structure depending on the situation to optimize
 /// memory consumption and execution speed.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum CompiledTrieNode {
     /// Node following the structure of a PATRICIA trie.
     /// More efficient to hold multiple-characters strings (e.g. bar-foo).
