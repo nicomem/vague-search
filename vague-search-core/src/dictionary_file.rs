@@ -63,9 +63,9 @@ impl DictionaryFile<'_> {
         const HEADER_LEN: usize = size_of::<Header>();
         const NODE_LEN: usize = size_of::<CompiledTrieNode>();
 
-        let nodes_ptr = ptr.offset(HEADER_LEN as isize);
-        let chars_ptr = nodes_ptr.offset((header.nb_nodes * NODE_LEN) as isize);
-        let ranges_ptr = chars_ptr.offset(header.nb_chars_bytes as isize);
+        let nodes_ptr = ptr.add(HEADER_LEN);
+        let chars_ptr = nodes_ptr.add(header.nb_nodes * NODE_LEN);
+        let ranges_ptr = chars_ptr.add(header.nb_chars_bytes);
 
         (nodes_ptr, chars_ptr, ranges_ptr)
     }
@@ -222,7 +222,7 @@ impl DictionaryFile<'_> {
 impl Drop for DictionaryFile<'_> {
     fn drop(&mut self) {
         // munmap the inner pointer if the struct was read from a file
-        if self.mmap_ptr != std::ptr::null() {
+        if self.mmap_ptr.is_null() {
             unsafe { libc::munmap(self.mmap_ptr as *mut c_void, self.ptr_len) };
         }
     }

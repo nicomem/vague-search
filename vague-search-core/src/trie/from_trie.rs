@@ -148,7 +148,7 @@ fn node_type_heuristic<N: TrieNodeDrainer>(
 
     'for_nodes: for (i, (node, chars)) in nodes.iter().zip(nodes_chars).enumerate() {
         let is_one_char = chars.chars().nth(1).is_none();
-        let first_char = chars.chars().nth(0);
+        let first_char = chars.chars().next();
 
         // Check the range state and either:
         // - add a character to the range and continue the loop

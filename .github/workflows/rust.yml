@@ -14,9 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Check Windows compatibility
-      run: RUSTFLAGS='--cfg windows' cargo check --workspace --verbose
-    - name: Build Unix
-      run: cargo build --workspace --verbose
+    - name: Run Clippy
+      run: cargo clippy --workspace --deny warning
     - name: Run tests
-      run: cargo test --workspace --verbose
+      run: cargo test --workspace
+    - name: Check Windows compatibility
+      run: RUSTFLAGS='--cfg windows' cargo check --workspace
