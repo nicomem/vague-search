@@ -2,6 +2,10 @@ use super::index::*;
 use crate::CompiledTrieNode;
 use std::{borrow::Cow, ops::Range};
 
+pub type NodeSlice = [CompiledTrieNode];
+pub type CharsSlice = str;
+pub type RangeSlice = [RangeElement];
+
 /// A trie data structure which has been optimized for size and speed.
 /// These optimizations come at the cost of not being able to modify the trie.
 ///
@@ -15,24 +19,24 @@ use std::{borrow::Cow, ops::Range};
 ///   nodes can be stored in a contiguous array.
 #[derive(Debug, Clone)]
 pub struct CompiledTrie<'a> {
-    pub(super) nodes: Cow<'a, [CompiledTrieNode]>,
-    pub(super) chars: Cow<'a, str>,
-    pub(super) ranges: Cow<'a, [Option<RangeElement>]>,
+    pub(super) nodes: Cow<'a, NodeSlice>,
+    pub(super) chars: Cow<'a, CharsSlice>,
+    pub(super) ranges: Cow<'a, RangeSlice>,
 }
 
 impl CompiledTrie<'_> {
     /// Return a slice of the node array.
-    pub(crate) fn nodes(&self) -> &[CompiledTrieNode] {
+    pub(crate) fn nodes(&self) -> &NodeSlice {
         &self.nodes
     }
 
     /// Return a slice of the character array.
-    pub(crate) fn chars(&self) -> &str {
+    pub(crate) fn chars(&self) -> &CharsSlice {
         &self.chars
     }
 
     /// Return a slice of the ranges array.
-    pub(crate) fn ranges(&self) -> &[Option<RangeElement>] {
+    pub(crate) fn ranges(&self) -> &RangeSlice {
         &self.ranges
     }
 
@@ -47,20 +51,18 @@ impl CompiledTrie<'_> {
     }
 
     /// Get a range of characters of a [PatriciaNode](crate::PatriciaNode).
-    pub fn get_chars(&self, range: Range<IndexChar>) -> Option<&str> {
+    pub fn get_chars(&self, range: Range<IndexChar>) -> Option<&CharsSlice> {
         self.chars.get(range.start.into()..range.end.into())
     }
 
     /// Get a range of nodes corresponding to a [RangeNode](crate::RangeNode).
-    pub fn get_range(&self, range: Range<IndexRange>) -> Option<&[Option<RangeElement>]> {
+    pub fn get_range(&self, range: Range<IndexRange>) -> Option<&RangeSlice> {
         self.ranges.get(range.start.into()..range.end.into())
     }
 }
 
-impl<'a> From<(&'a [CompiledTrieNode], &'a str, &'a [Option<RangeElement>])> for CompiledTrie<'a> {
-    fn from(
-        (nodes, chars, ranges): (&'a [CompiledTrieNode], &'a str, &'a [Option<RangeElement>]),
-    ) -> Self {
+impl<'a> From<(&'a NodeSlice, &'a CharsSlice, &'a RangeSlice)> for CompiledTrie<'a> {
+    fn from((nodes, chars, ranges): (&'a NodeSlice, &'a CharsSlice, &'a RangeSlice)) -> Self {
         CompiledTrie {
             nodes: Cow::Borrowed(nodes),
             chars: Cow::Borrowed(chars),

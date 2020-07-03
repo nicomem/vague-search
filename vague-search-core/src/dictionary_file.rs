@@ -120,10 +120,8 @@ impl DictionaryFile<'_> {
                 std::slice::from_raw_parts(chars_ptr as *const u8, header.nb_chars_bytes);
             let chars = std::str::from_utf8_unchecked(chars_u8);
 
-            let ranges = std::slice::from_raw_parts(
-                ranges_ptr as *const Option<RangeElement>,
-                header.nb_ranges,
-            );
+            let ranges =
+                std::slice::from_raw_parts(ranges_ptr as *const RangeElement, header.nb_ranges);
 
             // Create a borrowing compiled trie
             CompiledTrie::from((nodes, chars, ranges))
