@@ -1,5 +1,5 @@
 use std::num::NonZeroU32;
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PatriciaNode {
     letters: String,
     children: Vec<PatriciaNode>,
@@ -107,4 +107,96 @@ impl PatriciaNode {
         }
         
     }
+}
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+
+    fn empty_patricia() -> PatriciaNode {
+        PatriciaNode {letters: String::new(), children: Vec::new(), freq: None}
+    }
+
+    #[test]
+    fn empty_creation() {
+        let mut parent = empty_patricia();
+        parent.insert(&String::new(), NonZeroU32::new(1).unwrap());
+        assert!(parent.children.is_empty())
+    }
+
+    #[test]
+    fn insert_one_word () {
+        // Create parent and insert a child
+        let mut parent = empty_patricia();
+        parent.insert(&String::from("abc"), NonZeroU32::new(1).unwrap());
+
+        // Create expected result
+        let expected_node = PatriciaNode {letters: String::from("abc"), children: Vec::new(), freq: NonZeroU32::new(1)};
+        let mut expected = Vec::new();
+        expected.push(expected_node);
+
+        // Compare
+        assert!(parent.children.len() == 1);
+        assert!(parent.freq == None);
+        assert_eq!(parent.children, expected)
+    }
+
+    #[test]
+    fn insert_multiple_different_words () {
+        let mut parent = empty_patricia();
+        let default_freq  = 1;
+
+        parent.insert(&String::from("abc"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(&String::from("cab"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(&String::from("bac"), NonZeroU32::new(default_freq).unwrap());
+
+        let expected_abc = PatriciaNode {letters: String::from("abc"), children: Vec::new(), freq: NonZeroU32::new(default_freq)};
+        let expected_bac = PatriciaNode {letters: String::from("bac"), children: Vec::new(), freq: NonZeroU32::new(default_freq)};
+        let expected_cab = PatriciaNode {letters: String::from("cab"), children: Vec::new(), freq: NonZeroU32::new(default_freq)};
+        let expected = vec![expected_abc, expected_bac, expected_cab];
+
+        assert!(parent.children.len() == 3);
+        assert!(parent.freq == None);
+        assert_eq!(parent.children, expected)
+    }
+
+    #[test]
+    fn insert_continuation_word () {
+        let mut parent = empty_patricia();
+        let default_freq = 1;
+
+        parent.insert(&String::from("abc"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(&String::from("abcdefg"), NonZeroU32::new(default_freq).unwrap());
+
+        assert!(parent.children.len() == 1);
+        let only_child = parent.children.pop().unwrap();
+        
+        let expected_defg = PatriciaNode {letters: String::from("defg"), children: Vec::new(), freq: NonZeroU32::new(default_freq)};
+        let expected_abc = PatriciaNode {letters: String::from("abc"), children: vec![expected_defg], freq: NonZeroU32::new(default_freq)};
+
+        assert_eq!(only_child, expected_abc);
+    }
+
+    #[test]
+    fn insert_in_already_word () {
+        let mut parent = empty_patricia();
+        let default_freq = 1;
+
+        parent.insert(&String::from("abcdefg"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(&String::from("abcklm"), NonZeroU32::new(default_freq).unwrap());
+
+        assert!(parent.children.len() == 1);
+        // abc
+        let only_child = parent.children.pop().unwrap();
+
+        let expected_defg = PatriciaNode {letters: String::from("defg"), children: Vec::new(), freq: NonZeroU32::new(default_freq)};
+        let expected_klm = PatriciaNode {letters: String::from("klm"), children: Vec::new(), freq: NonZeroU32::new(default_freq)};
+        let expected_abc = PatriciaNode {letters: String::from("abc"), children: vec![expected_defg, expected_klm], freq: NonZeroU32::new(2)};
+
+        assert!(only_child.children.len() == 2);
+        assert_eq!(only_child.children, expected_abc.children);
+    }
+
+
 }
