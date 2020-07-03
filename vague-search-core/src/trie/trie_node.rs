@@ -36,6 +36,9 @@ pub struct NaiveNode {
     pub character: char,
 }
 
+/// A [CompiledTrie](crate::CompiledTrie) node representing a range of characters.
+/// This node only represents the range of characters, to access its children,
+/// check the [RangeSlice](crate::RangeSlice) of the [CompiledTrie](crate::CompiledTrie).
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RangeNode {
     /// The number of siblings of the node.
@@ -47,6 +50,20 @@ pub struct RangeNode {
 
     /// The index of the range in the eponymic array.
     pub range: Range<IndexRange>,
+}
+
+/// An element of the range array, accessible via a [RangeNode](crate::RangeNode).
+/// Since `index_first_child` cannot have the value 0, the struct can be contained
+/// inside an Option without using more memory.
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub struct RangeElement {
+    /// The index of the first child in the node array.
+    /// This index could not be equal to 0 because the 0th node is the trie root,
+    /// which is a child to none.
+    pub index_first_child: Option<IndexNodeNonZero>,
+
+    /// The word frequency. If None, the word does not exist in the dictionary.
+    pub word_freq: Option<NonZeroU32>,
 }
 
 /// A node of a compiled trie.

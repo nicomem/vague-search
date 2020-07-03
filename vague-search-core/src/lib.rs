@@ -7,10 +7,6 @@ mod error;
 mod trie;
 mod utils;
 
-pub use dictionary_file::{DictionaryFile, Header};
+pub use dictionary_file::*;
 pub use error::{Error, Result};
-pub use trie::{
-    compiled_trie::CompiledTrie,
-    index::*,
-    trie_node::{CompiledTrieNode, NaiveNode, PatriciaNode, RangeNode},
-};
+pub use trie::{compiled_trie::*, index::*, trie_node::*};

@@ -9,11 +9,13 @@ enum TrieNode<'a, N: TrieNodeDrainer> {
     Range(&'a [N], Vec<char>),
 }
 
+/// Create a dummy index with an undefined (but fixed) value.
+/// Useful when creating a temporary value, rewritten soon after.
 const fn dummy_index() -> Option<IndexNodeNonZero> {
-    // SAFETY: Safe because 12345 != 0
+    // SAFETY: Safe because != 0
     // Use of unsafe because .unwrap() is not yet const fn
     Some(IndexNodeNonZero::new(unsafe {
-        NonZeroU32::new_unchecked(12345)
+        NonZeroU32::new_unchecked(u32::MAX)
     }))
 }
 
@@ -99,14 +101,14 @@ fn should_add_to_range(range: &[char], cur: char) -> bool {
         .map_or(false, |&last| char_dist(last, cur) <= MAX_DIST_IN_RANGE)
 }
 
-/// Drain the characters of the nodes to then be used in [node_type_heuristic](self::node_type_heuristic).
+/// Drain the characters of the nodes to then be used in [node_type_heuristic](node_type_heuristic).
 /// We cannot call it there because it would make the return value have mutable reference to the nodes,
 /// limiting nodes manipulation after.
 fn extract_characters<N: TrieNodeDrainer>(nodes: &mut [N]) -> Vec<String> {
     nodes.iter_mut().map(|n| n.drain_characters()).collect()
 }
 
-/// Function designed to be used in [node_type_heuristic](self::node_type_heuristic).
+/// Function designed to be used in [node_type_heuristic](node_type_heuristic).
 /// Process the characters in the range to either:
 /// - Do nothing (empty range)
 /// - Add a SimpleNode to the `res_nodes` (single character in the range)

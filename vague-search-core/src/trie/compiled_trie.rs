@@ -1,9 +1,14 @@
 use super::index::*;
-use crate::CompiledTrieNode;
+use crate::{CompiledTrieNode, RangeElement};
 use std::{borrow::Cow, ops::Range};
 
+/// Represent the node array of the [CompiledTrie](crate::CompiledTrie)
 pub type NodeSlice = [CompiledTrieNode];
+
+/// Represent the character array of the [CompiledTrie](crate::CompiledTrie)
 pub type CharsSlice = str;
+
+/// Represent the range array of the [CompiledTrie](crate::CompiledTrie)
 pub type RangeSlice = [RangeElement];
 
 /// A trie data structure which has been optimized for size and speed.

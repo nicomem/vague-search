@@ -51,8 +51,9 @@ macro_rules! derive_from {
     };
 }
 
-/// Same as [IndexNode](self::IndexNode) but cannot be 0.
-/// This enables some memory optimizations for [RangeElement](self::RangeElement).
+/// Represent a valid index in the [CompiledTrie](crate::CompiledTrie) corresponding array.
+/// Cannot represent the 0th index.
+/// This enables some memory optimizations for [RangeElement](crate::RangeElement).
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct IndexNodeNonZero {
     index: NonZeroU32,
@@ -64,17 +65,3 @@ derive_new!(NonZeroU32, IndexNodeNonZero);
 derive_from!(IndexChar, u32, u64, usize);
 derive_from!(IndexRange, u32, u64, usize);
 derive_from!(IndexNodeNonZero, u32, u64, usize);
-
-/// An element of the range array, accessible via a [RangeNode](crate::RangeNode).
-/// Since `index_first_child` cannot have the value 0, the struct can be contained
-/// inside an Option without using more memory.
-#[derive(Debug, Clone, Default, Eq, PartialEq)]
-pub struct RangeElement {
-    /// The index of the first child in the node array.
-    /// This index could not be equal to 0 because the 0th node is the trie root,
-    /// which is a child to none.
-    pub index_first_child: Option<IndexNodeNonZero>,
-
-    /// The word frequency. If None, the word does not exist in the dictionary.
-    pub word_freq: Option<NonZeroU32>,
-}
