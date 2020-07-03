@@ -593,7 +593,7 @@ mod test {
     }
 
     #[test]
-    fn test_from_all_simples() {
+    fn test_from_all_naive() {
         let root = create_simple(
             '-',
             0,
@@ -811,5 +811,114 @@ mod test {
             },
         ];
         run_assert_from(root, &target_nodes, target_chars, &target_ranges);
+    }
+
+    #[test]
+    fn test_from_mixed() {
+        const HE_COMES: &str = "H̸̡̪̯ͨ͊̽̅̾̎Ȩ̬̩̾͛ͪ̈́̀́͘ ̶̧̨̱̹̭̯ͧ̾ͬC̷̙̲̝͖ͭ̏ͥͮ͟Oͮ͏̮̪̝͍M̲̖͊̒ͪͩͬ̚̚͜Ȇ̴̟̟͙̞ͩ͌͝S̨̥̫͎̭ͯ̿̔̀ͅ";
+        const RUST_IS_LOVE: &str = "Rust is ❤";
+
+        let root = create_simple(
+            '-',
+            0,
+            vec![
+                create_patricia(
+                    "apata",
+                    1,
+                    vec![create_simple('d', 2, vec![]), create_simple('f', 1, vec![])],
+                ),
+                create_simple(
+                    'd',
+                    0,
+                    vec![
+                        create_simple('a', 9, vec![]),
+                        create_patricia(HE_COMES, 1, vec![]),
+                        create_simple('r', 6, vec![]),
+                        create_simple('t', 1, vec![]),
+                        create_simple('w', 7, vec![]),
+                    ],
+                ),
+                create_simple('f', 5, vec![create_patricia(RUST_IS_LOVE, 999, vec![])]),
+            ],
+        );
+        let target_nodes = vec![
+            CompiledTrieNode::PatriciaNode(PatriciaNode {
+                nb_siblings: 1,
+                index_first_child: NonZeroU32::new(2).map(IndexNodeNonZero::new),
+                word_freq: NonZeroU32::new(1),
+                char_range: IndexChar::new(0)..IndexChar::new(5),
+            }),
+            CompiledTrieNode::RangeNode(RangeNode {
+                nb_siblings: 0,
+                first_char: 'd',
+                range: IndexRange::new(0)..IndexRange::new(3),
+            }),
+            CompiledTrieNode::RangeNode(RangeNode {
+                nb_siblings: 0,
+                first_char: 'd',
+                range: IndexRange::new(3)..IndexRange::new(6),
+            }),
+            CompiledTrieNode::NaiveNode(NaiveNode {
+                nb_siblings: 2,
+                index_first_child: None,
+                word_freq: NonZeroU32::new(9),
+                character: 'a',
+            }),
+            CompiledTrieNode::PatriciaNode(PatriciaNode {
+                nb_siblings: 1,
+                index_first_child: None,
+                word_freq: NonZeroU32::new(1),
+                char_range: IndexChar::new(5)..IndexChar::new(5 + HE_COMES.len() as u32),
+            }),
+            CompiledTrieNode::RangeNode(RangeNode {
+                nb_siblings: 0,
+                first_char: 'r',
+                range: IndexRange::new(6)..IndexRange::new(12),
+            }),
+            CompiledTrieNode::PatriciaNode(PatriciaNode {
+                nb_siblings: 0,
+                index_first_child: None,
+                word_freq: NonZeroU32::new(999),
+                char_range: IndexChar::new(5 + HE_COMES.len() as u32)
+                    ..IndexChar::new((5 + HE_COMES.len() + RUST_IS_LOVE.len()) as u32),
+            }),
+        ];
+        let target_chars = ["apata", HE_COMES, RUST_IS_LOVE].concat();
+        let target_ranges = vec![
+            RangeElement {
+                index_first_child: NonZeroU32::new(3).map(IndexNodeNonZero::new),
+                word_freq: None,
+            },
+            RangeElement::default(),
+            RangeElement {
+                index_first_child: NonZeroU32::new(6).map(IndexNodeNonZero::new),
+                word_freq: NonZeroU32::new(5),
+            },
+            RangeElement {
+                index_first_child: None,
+                word_freq: NonZeroU32::new(2),
+            },
+            RangeElement::default(),
+            RangeElement {
+                index_first_child: None,
+                word_freq: NonZeroU32::new(1),
+            },
+            RangeElement {
+                index_first_child: None,
+                word_freq: NonZeroU32::new(6),
+            },
+            RangeElement::default(),
+            RangeElement {
+                index_first_child: None,
+                word_freq: NonZeroU32::new(1),
+            },
+            RangeElement::default(),
+            RangeElement::default(),
+            RangeElement {
+                index_first_child: None,
+                word_freq: NonZeroU32::new(7),
+            },
+        ];
+        run_assert_from(root, &target_nodes, &target_chars, &target_ranges);
     }
 }
