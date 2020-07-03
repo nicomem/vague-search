@@ -66,26 +66,36 @@ impl PatriciaNode {
         return true;
     }
 
+    /// Insert a word and its frequency in the patricia trie
     pub(crate) fn insert(&mut self, word: &String, frequency: NonZeroU32) {
+        // Mutable pointer to switch between the parents and children
         let mut parent: &mut PatriciaNode= self;
+        // Clone to avoid destroying given data
+        let mut word_cpy = word.clone();
+
+        // No need of doing anything if the word is empty
+        if word.is_empty() {
+            return;
+        }
 
         loop {
             let mut index_child: usize = 0;
 
             let res = parent.children.binary_search_by(|child| 
-                child.letters.chars().next().cmp(&word.chars().next()));
+                child.letters.chars().next().cmp(&word_cpy.chars().next()));
 
             let inserted = match res {
                 Ok(r) => {
                     let child = parent.children.get_mut(r).unwrap();
-                    let insrt = child.divide(word, frequency);
+                    let insrt = child.divide(&word_cpy, frequency);
                     if !insrt {
                         index_child = r;
+                        word_cpy = word_cpy.split_off(child.letters.len());
                     }
                     insrt
                 }
                 Err(r) => { 
-                    parent.createAndInsertAt(r, word, frequency);
+                    parent.createAndInsertAt(r, &word_cpy, frequency);
                     true
                 }
             };
