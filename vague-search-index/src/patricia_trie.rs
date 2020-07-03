@@ -32,38 +32,64 @@ impl PatriciaNode {
             let new_word_node = PatriciaNode {letters: second_word.to_string(), children: Vec::new(), freq: Some(frequency)};
             self.children.push(new_word_node);
         }
+        // otherwise current node is a word, add the frequency
         else {
             self.freq = Some(frequency);
         }
     }
 
+    fn createAndInsertAt(&mut self, index: usize, word: &String, frequency: NonZeroU32){
+        let child = PatriciaNode{letters: word.clone(), children: Vec::new(), freq: Some(frequency)};
+        self.children.insert(index, child);
+
+    }
+
+    fn divide(&mut self, word: &String, frequency: NonZeroU32) -> bool
+    {
+        let index_diff = indexDifference(&self.letters, &word);
+        match index_diff {
+            Some(ind) => {
+                self.divideNode(word, ind, frequency)
+            }
+            None => {
+                if word.len() < self.letters.len() {
+                    self.divideNode(word, word.len(), frequency)
+                }
+                else if word.len() == self.letters.len() {
+                    self.freq = Some(frequency);
+                }
+                else {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     pub(crate) fn insert(&mut self, word: &String, frequency: NonZeroU32) {
         let mut parent: &mut PatriciaNode= self;
 
-        // otherwise we must loop on the potential cases
         loop {
-            let mut index_diff = Some(0);
             let mut index_child: usize = 0;
 
-            for child in &mut parent.children {
-                index_diff = indexDifference(&child.letters, &word);
-                match index_diff {
-                    Some(ind) => {
-                        if ind != child.letters.len() && ind != 0 {
-                            child.divideNode(&word, ind, frequency);
-                            return
-                        }
-                        else if ind != 0{
-                            break;
-                        }
+            let res = parent.children.binary_search_by(|child| 
+                child.letters.chars().next().cmp(&word.chars().next()));
+
+            let inserted = match res {
+                Ok(r) => {
+                    let child = parent.children.get_mut(r).unwrap();
+                    let insrt = child.divide(word, frequency);
+                    if !insrt {
+                        index_child = r;
                     }
-                    None => { break; }
+                    insrt
                 }
-                index_child += 1;
-            }
-            if index_diff.is_some() && index_diff.unwrap() == 0 {
-                let child = PatriciaNode{letters: word.clone(), children: Vec::new(), freq: None};
-                parent.children.push(child);
+                Err(r) => { 
+                    parent.createAndInsertAt(r, word, frequency);
+                    true
+                }
+            };
+            if inserted {
                 break;
             }
             
