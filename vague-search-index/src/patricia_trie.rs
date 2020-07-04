@@ -112,18 +112,26 @@ impl PatriciaNode {
         let child = self.children.get_mut(index).unwrap();
 
         if child.letters.len() < word.len() {
-            return false;
+            return !word.starts_with(child.letters.as_str()); // false to continue looping
         }
         else if child.letters.len() > word.len() || child.freq == None {
             return true;
         }
 
+        // Both words are not equal, consider as deleted node
+        if &child.letters != word {
+            return true;
+        }
+
+        // If more than one children only removing the node as a word is sufficient
         if child.children.len() > 1 {
             child.freq = None;
         }
+        // Otherwise remove the node entirely
         else if child.children.is_empty() {
             self.children.remove(index);
         }
+        // Or combine the child and its only child
         else {
             let mut leftover_child = child.children.pop().unwrap();
             child.letters.push_str(leftover_child.letters.as_str());
@@ -154,21 +162,24 @@ impl PatriciaNode {
             match res {
                 Ok(r) => {
                     index_child = r;
+                    // If node not deleted then we must continue looping
                     if !parent.deleteNode(&word_cpy, r) {
                         let child = parent.children.get_mut(r).unwrap();
                         word_cpy = word_cpy.split_off(child.letters.len());
                     }
+                    // Stop condition
                     else {
                         return;
                     }
                 }
                 Err(_) => { return; }
             }
-
+            // Switch between parent and child
             parent = parent.children.get_mut(index_child).unwrap();
         }
     }
 
+    /// Recursive search in patricia trie of a word
     pub(crate) fn search(&self, mut word: String) -> Option<&Self> {
         if self.children.is_empty() {
             None
@@ -231,6 +242,7 @@ mod tests{
         let mut expected = Vec::new();
         expected.push(expected_node);
 
+        println!("{:?}", parent);
         // Compare
         assert!(parent.children.len() == 1);
         assert!(parent.freq == None);
@@ -294,5 +306,98 @@ mod tests{
         assert_eq!(only_child.children, expected_abc.children);
     }
 
+    #[test]
+    fn simple_insert_delete () {
+        let mut parent = empty_patricia();
+        let default_freq = 1;
+
+        parent.insert(&String::from("abc"), NonZeroU32::new(default_freq).unwrap());
+
+        assert!(parent.children.len() == 1);
+
+        parent.delete(&String::from("abc"));
+        println!("{:?}", parent);
+
+        assert!(parent.children.is_empty());
+    }
+
+    #[test]
+    fn multiple_insert_inner_delete () {
+        let mut parent = empty_patricia();
+        let default_freq = 1;
+
+        parent.insert(&String::from("abcdefg"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(&String::from("abcklm"), NonZeroU32::new(default_freq).unwrap());
+
+        parent.delete(&String::from("abc"));
+
+        assert!(parent.children.len() == 1);
+        let only_child = parent.children.pop().unwrap();
+        assert!(only_child.children.len() == 2);
+        assert!(only_child.freq == None);
+    }
+
+    #[test]
+    fn delete_combination () {
+        let mut parent = empty_patricia();
+        let default_freq = 1;
+
+        parent.insert(&String::from("abcdefg"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+
+        parent.delete(&String::from("abc"));
+
+        assert!(parent.children.len() == 1);
+        let only_child = parent.children.pop().unwrap();
+        assert_eq!(only_child.letters, "abcdefg");
+        assert!(only_child.children.is_empty());
+    }
+
+    #[test]
+    fn delete_not_existing () {
+        let mut parent = empty_patricia();
+        let default_freq = 1;
+
+        parent.insert(&String::from("abcdefg"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(&String::from("abcklm"), NonZeroU32::new(default_freq).unwrap());
+
+        let parent_clone = parent.clone();
+
+        parent.delete(&String::from("ab"));
+        parent.delete(&String::from("abck"));
+        parent.delete(&String::from("abcdefgk"));
+
+        assert_eq!(parent, parent_clone);
+    }
+
+    #[test]
+    fn simple_search () {
+        let mut parent = empty_patricia();
+
+        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+
+        let child = parent.search(String::from("abc"));
+        assert!(child.is_some());
+
+        let expected_child = PatriciaNode {letters: String::from("abc"), children: Vec::new(), freq: NonZeroU32::new(2)};
+
+        assert_eq!(child.unwrap(), &expected_child);
+    }
+
+    #[test]
+    fn inner_search () {
+        let mut parent = empty_patricia();
+
+        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(&String::from("abcdefg"), NonZeroU32::new(1).unwrap());
+        
+        let child = parent.search(String::from("abcdefg"));
+        assert!(child.is_some());
+
+        let expected_child = PatriciaNode {letters: String::from("defg"), children: Vec::new(), freq: NonZeroU32::new(1)};
+        assert_eq!(child.unwrap(), &expected_child);
+    }
 
 }
