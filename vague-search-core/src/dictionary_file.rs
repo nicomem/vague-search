@@ -1,8 +1,7 @@
 use crate::{
     error::*,
-    trie::index::RangeElement,
     utils::{as_bytes, AsBytes},
-    CompiledTrie, CompiledTrieNode,
+    CompiledTrie, CompiledTrieNode, RangeElement,
 };
 use snafu::ResultExt;
 use std::{
@@ -18,7 +17,7 @@ use std::{
 #[derive(Debug, Copy, Clone)]
 pub struct Header {
     pub nb_nodes: usize,
-    pub nb_chars: usize,
+    pub nb_chars_bytes: usize,
     pub nb_ranges: usize,
 }
 
@@ -63,11 +62,10 @@ impl DictionaryFile<'_> {
     ) -> (*const c_void, *const c_void, *const c_void) {
         const HEADER_LEN: usize = size_of::<Header>();
         const NODE_LEN: usize = size_of::<CompiledTrieNode>();
-        const CHAR_LEN: usize = size_of::<char>();
 
-        let nodes_ptr = ptr.offset(HEADER_LEN as isize);
-        let chars_ptr = nodes_ptr.offset((header.nb_nodes * NODE_LEN) as isize);
-        let ranges_ptr = chars_ptr.offset((header.nb_chars * CHAR_LEN) as isize);
+        let nodes_ptr = ptr.add(HEADER_LEN);
+        let chars_ptr = nodes_ptr.add(header.nb_nodes * NODE_LEN);
+        let ranges_ptr = chars_ptr.add(header.nb_chars_bytes);
 
         (nodes_ptr, chars_ptr, ranges_ptr)
     }
@@ -117,7 +115,11 @@ impl DictionaryFile<'_> {
             // Type each array
             let nodes =
                 std::slice::from_raw_parts(nodes_ptr as *const CompiledTrieNode, header.nb_nodes);
-            let chars = std::slice::from_raw_parts(chars_ptr as *const char, header.nb_chars);
+
+            let chars_u8 =
+                std::slice::from_raw_parts(chars_ptr as *const u8, header.nb_chars_bytes);
+            let chars = std::str::from_utf8_unchecked(chars_u8);
+
             let ranges =
                 std::slice::from_raw_parts(ranges_ptr as *const RangeElement, header.nb_ranges);
 
@@ -153,7 +155,6 @@ impl DictionaryFile<'_> {
         let header = unsafe { *(mmap_ptr as *const Header) };
 
         // Type the compiled trie
-
         let trie = unsafe {
             // Get the offset pointers to each array
             let (nodes_ptr, chars_ptr, ranges_ptr) = Self::get_offsets_ptr(&header, mmap_ptr);
@@ -161,7 +162,13 @@ impl DictionaryFile<'_> {
             // Type each array
             let nodes =
                 std::slice::from_raw_parts(nodes_ptr as *const CompiledTrieNode, header.nb_nodes);
-            let chars = std::slice::from_raw_parts(chars_ptr as *const char, header.nb_chars);
+
+            let chars_u8 =
+                std::slice::from_raw_parts(chars_ptr as *const u8, header.nb_chars_bytes);
+            // The string has already been checked during compilation so we don't need to here
+            // (also everything here is extremely unsafe and relies on the fact that the file has not been modified)
+            let chars = std::str::from_utf8_unchecked(chars_u8);
+
             let ranges =
                 std::slice::from_raw_parts(ranges_ptr as *const RangeElement, header.nb_ranges);
 
@@ -213,7 +220,7 @@ impl DictionaryFile<'_> {
 impl Drop for DictionaryFile<'_> {
     fn drop(&mut self) {
         // munmap the inner pointer if the struct was read from a file
-        if self.mmap_ptr != std::ptr::null() {
+        if self.mmap_ptr.is_null() {
             unsafe { libc::munmap(self.mmap_ptr as *mut c_void, self.ptr_len) };
         }
     }
@@ -223,7 +230,7 @@ impl<'a> From<CompiledTrie<'a>> for DictionaryFile<'a> {
     fn from(trie: CompiledTrie<'a>) -> Self {
         let header = Header {
             nb_nodes: trie.nodes().len(),
-            nb_chars: trie.chars().len(),
+            nb_chars_bytes: trie.chars().as_bytes().len(),
             nb_ranges: trie.ranges().len(),
         };
 

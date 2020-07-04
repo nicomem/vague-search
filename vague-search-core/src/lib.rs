@@ -7,18 +7,6 @@ mod error;
 mod trie;
 mod utils;
 
-pub use dictionary_file::{DictionaryFile, Header};
+pub use dictionary_file::*;
 pub use error::{Error, Result};
-pub use trie::{
-    compiled_trie::CompiledTrie,
-    index::*,
-    trie_node::{CompiledTrieNode, NaiveNode, PatriciaNode, RangeNode},
-};
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+pub use trie::{compiled_trie::*, index::*, trie_node::*};

@@ -2,7 +2,7 @@ use super::index::*;
 use std::{num::NonZeroU32, ops::Range};
 
 /// A [CompiledTrie](crate::CompiledTrie) node following a Patricia trie structure.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PatriciaNode {
     /// The number of siblings of the node.
     /// The next sibling is located at the next index in the node array.
@@ -10,7 +10,7 @@ pub struct PatriciaNode {
     pub nb_siblings: u32,
 
     /// The index of the first child in the node array.
-    pub index_first_child: IndexNode,
+    pub index_first_child: Option<IndexNodeNonZero>,
 
     /// The word frequency. If None, the word does not exist in the dictionary.
     pub word_freq: Option<NonZeroU32>,
@@ -20,14 +20,14 @@ pub struct PatriciaNode {
 }
 
 /// A [CompiledTrie](crate::CompiledTrie) node following a naive trie structure.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct NaiveNode {
     /// The number of siblings of the node.
     /// The next sibling is located at the next index in the node array.
     pub nb_siblings: u32,
 
     /// The index of the first child in the node array.
-    pub index_first_child: IndexNode,
+    pub index_first_child: Option<IndexNodeNonZero>,
 
     /// The word frequency. If None, the word does not exist in the dictionary.
     pub word_freq: Option<NonZeroU32>,
@@ -36,7 +36,10 @@ pub struct NaiveNode {
     pub character: char,
 }
 
-#[derive(Debug, Clone)]
+/// A [CompiledTrie](crate::CompiledTrie) node representing a range of characters.
+/// This node only represents the range of characters, to access its children,
+/// check the [RangeSlice](crate::RangeSlice) of the [CompiledTrie](crate::CompiledTrie).
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RangeNode {
     /// The number of siblings of the node.
     /// The next sibling is located at the next index in the node array.
@@ -49,10 +52,24 @@ pub struct RangeNode {
     pub range: Range<IndexRange>,
 }
 
+/// An element of the range array, accessible via a [RangeNode](crate::RangeNode).
+/// Since `index_first_child` cannot have the value 0, the struct can be contained
+/// inside an Option without using more memory.
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub struct RangeElement {
+    /// The index of the first child in the node array.
+    /// This index could not be equal to 0 because the 0th node is the trie root,
+    /// which is a child to none.
+    pub index_first_child: Option<IndexNodeNonZero>,
+
+    /// The word frequency. If None, the word does not exist in the dictionary.
+    pub word_freq: Option<NonZeroU32>,
+}
+
 /// A node of a compiled trie.
 /// Can be of different structure depending on the situation to optimize
 /// memory consumption and execution speed.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum CompiledTrieNode {
     /// Node following the structure of a PATRICIA trie.
     /// More efficient to hold multiple-characters strings (e.g. bar-foo).
