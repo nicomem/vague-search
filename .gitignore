@@ -1,4 +1,8 @@
+# Folders: 
 /target
+/.vscode
+
+# Files:
 TextMiningCompiler
 TextMiningApp
 *.bin
