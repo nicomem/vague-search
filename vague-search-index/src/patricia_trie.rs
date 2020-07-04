@@ -20,7 +20,7 @@ impl PatriciaNode {
         let second_part = self.letters.split_off(ind);
 
         let mut new_node = PatriciaNode {
-            letters: second_part.to_string(),
+            letters: second_part,
             children: Vec::new(),
             freq: self.freq,
         };
