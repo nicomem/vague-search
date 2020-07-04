@@ -107,6 +107,102 @@ impl PatriciaNode {
         }
         
     }
+
+    fn deleteNode(&mut self, word: &String, index: usize) -> bool {
+        let child = self.children.get_mut(index).unwrap();
+
+        if child.letters.len() < word.len() {
+            return false;
+        }
+        else if child.letters.len() > word.len() || child.freq == None {
+            return true;
+        }
+
+        if child.children.len() > 1 {
+            child.freq = None;
+        }
+        else if child.children.is_empty() {
+            self.children.remove(index);
+        }
+        else {
+            let mut leftover_child = child.children.pop().unwrap();
+            child.letters.push_str(leftover_child.letters.as_str());
+            child.freq = leftover_child.freq;
+            std::mem::swap(&mut child.children, &mut leftover_child.children);
+        }
+        return true;
+    }
+
+    pub(crate) fn delete(&mut self, word: &String)
+    {
+        // Mutable pointer to switch between the parents and children
+        let mut parent: &mut PatriciaNode= self;
+        // Clone to avoid destroying given data
+        let mut word_cpy = word.clone();
+
+        // No need of doing anything if the word is empty
+        if word.is_empty() {
+            return;
+        }
+
+        loop {
+            let index_child: usize;
+
+            let res = parent.children.binary_search_by(|child| 
+                child.letters.chars().next().cmp(&word_cpy.chars().next()));
+
+            match res {
+                Ok(r) => {
+                    index_child = r;
+                    if !parent.deleteNode(&word_cpy, r) {
+                        let child = parent.children.get_mut(r).unwrap();
+                        word_cpy = word_cpy.split_off(child.letters.len());
+                    }
+                    else {
+                        return;
+                    }
+                }
+                Err(_) => { return; }
+            }
+
+            parent = parent.children.get_mut(index_child).unwrap();
+        }
+    }
+
+    pub(crate) fn search(&self, mut word: String) -> Option<&Self> {
+        if self.children.is_empty() {
+            None
+        }
+        else {
+            let res = self.children.binary_search_by(|child| 
+                child.letters.chars().next().cmp(&word.chars().next()));
+            
+            match res {
+                Ok(r) => {
+                    let child = self.children.get(r).unwrap();
+                    let word_cpy: String;
+                    if child.letters.len() > word.len() {
+                        None
+                    }
+                    else if child.letters.len() == word.len() {
+                        if child.letters != word {None} else {Some(child)}
+                    }
+                    else {
+                        word_cpy = word.split_off(child.letters.len());
+                        if child.letters != word {
+                            None
+                        }
+                        else {
+                            word = word_cpy;
+                            child.search(word)
+                        }
+                    }
+                }
+                Err(_) => {None}
+            }
+
+        }
+    }
 }
 
 #[cfg(test)]
