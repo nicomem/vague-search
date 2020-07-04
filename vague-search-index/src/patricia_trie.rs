@@ -11,6 +11,10 @@ pub fn index_difference(first: &str, second: &str) -> Option<usize> {
 }
 
 impl PatriciaNode {
+    pub(crate) fn create_empty() -> Self {
+        Self { letters: String::new(), children: Vec::new(), freq: None }
+    }
+
     ///  Divides a node by two in indicated index and creates the childs accordingly
     fn divide_node(&mut self, word: &str, ind: usize, frequency: NonZeroU32) {
         let (first_part, second_part) = self.letters.split_at(ind);
