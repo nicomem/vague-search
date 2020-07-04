@@ -17,7 +17,7 @@ impl PatriciaNode {
 
     ///  Divides a node by two in indicated index and creates the childs accordingly
     fn divide_node(&mut self, word: &str, ind: usize, frequency: NonZeroU32) {
-        let (first_part, second_part) = self.letters.split_at(ind);
+        let second_part = self.letters.split_off(ind);
 
         let mut new_node = PatriciaNode {
             letters: second_part.to_string(),
@@ -30,7 +30,7 @@ impl PatriciaNode {
         let (_, second_word) = word.split_at(ind);
         self.children = vec![new_node];
         self.freq = None;
-        self.letters = first_part.to_string();
+        // Split off already changed letters
 
         // push node only if word to insert isn't empty
         if !second_word.is_empty() {
@@ -69,15 +69,16 @@ impl PatriciaNode {
 
     /// Insert a word and its frequency in the patricia trie
     pub(crate) fn insert(&mut self, word: &str, frequency: NonZeroU32) {
+        // No need of doing anything if the word is empty
+        if word.is_empty() {
+            return;
+        }
+
         // Mutable pointer to switch between the parents and children
         let mut parent: &mut PatriciaNode = self;
         // Clone to avoid destroying given data
         let mut word_cpy = word.to_string();
 
-        // No need of doing anything if the word is empty
-        if word.is_empty() {
-            return;
-        }
 
         loop {
             let mut index_child: usize = 0;
@@ -142,15 +143,14 @@ impl PatriciaNode {
     }
 
     pub(crate) fn delete(&mut self, word: &str) {
-        // Mutable pointer to switch between the parents and children
-        let mut parent: &mut PatriciaNode = self;
-        // Clone to avoid destroying given data
-        let mut word_cpy = word.to_string();
-
         // No need of doing anything if the word is empty
         if word.is_empty() {
             return;
         }
+        // Mutable pointer to switch between the parents and children
+        let mut parent: &mut PatriciaNode = self;
+        // Clone to avoid destroying given data
+        let mut word_cpy = word.to_string();
 
         loop {
             let index_child: usize;
