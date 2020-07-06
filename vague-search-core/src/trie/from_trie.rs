@@ -83,6 +83,15 @@ fn add_range<N: TrieNodeDrainer>(
         }
     }
 
+    debug_assert_eq!(
+        trie_ranges[*index_range.start as usize].index_first_child,
+        dummy_index()
+    );
+    debug_assert_eq!(
+        trie_ranges[*index_range.end as usize - 1].index_first_child,
+        dummy_index()
+    );
+
     (index_range, min)
 }
 
@@ -286,30 +295,26 @@ fn fill_from_trie<N: TrieNodeDrainer>(
                 partial_i += 1;
             }
             CompiledTrieNode::RangeNode(ref n) => {
-                // Get the index of the current element in the range
-                let mut i = (*n.range.start + range_i) as usize;
-                debug_assert!(i <= *n.range.end as usize);
+                let index = || (*n.range.start + range_i) as usize;
 
                 // Get the first element which is marked with the dummy index
                 // (see the add_range function)
                 // Since the range does not end with a not present element,
                 // the loop does not out-of-bounds.
-                while trie_ranges[i].index_first_child != dummy_index() {
-                    i += 1;
-                    debug_assert!(i <= *n.range.end as usize);
+                while trie_ranges[index()].index_first_child != dummy_index() {
+                    partial_i += 1;
+                    debug_assert!(index() <= *n.range.end as usize);
                 }
 
                 // Replace the dummy index with the correct one
-                trie_ranges[i].index_first_child =
+                trie_ranges[index()].index_first_child =
                     NonZeroU32::new(index_first_child).map(IndexNodeNonZero::new);
 
                 // If we just filled the last element, advance to the next partial node
                 // else advance in the range
-                if i as u32 == *n.range.end - 1 {
+                if index() + 1 >= *n.range.end as usize {
                     partial_i += 1;
                     range_i = 0;
-                } else {
-                    range_i = i as u32 + 1 - *n.range.start;
                 }
             }
         }
