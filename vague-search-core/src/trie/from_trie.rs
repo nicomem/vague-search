@@ -27,7 +27,16 @@ const fn dummy_index() -> Option<IndexNodeNonZero> {
 /// If the characters are already present in the vector, it may not insert them
 /// and instead return the already present characters range of index.
 fn add_chars(big_string: &mut String, chars: &str) -> Range<IndexChar> {
-    let pos = big_string.find(chars).unwrap_or_else(|| {
+    const SEARCH_LIMIT: usize = 256;
+    let mut byte_windows = big_string
+        .as_bytes()
+        .windows(chars.len())
+        .rev()
+        .take(SEARCH_LIMIT)
+        .rev();
+
+    let found = byte_windows.position(|win| win == chars.as_bytes());
+    let pos = found.unwrap_or_else(|| {
         // Save the start position where chars will be added
         let start_pos = big_string.len();
         big_string.push_str(chars);
@@ -326,12 +335,22 @@ fn fill_from_trie<N: TrieNodeDrainer>(
 
         // Partially create the nodes in the heuristics.
         // Fill all information available without recursion.
-        let partial_nodes = (0u32..nb_created_nodes as u32).rev().zip(heuristics).map(
-            |(nb_siblings, heuristic)| {
-                create_partial_node(nb_siblings, heuristic, trie_chars, trie_ranges)
-            },
-        );
-        trie_nodes.extend(partial_nodes);
+        // let partial_nodes = (0u32..nb_created_nodes as u32).rev().zip(heuristics).map(
+        //     |(nb_siblings, heuristic)| {
+        //         create_partial_node(nb_siblings, heuristic, trie_chars, trie_ranges)
+        //     },
+        // );
+        // trie_nodes.extend(partial_nodes);
+
+        // TODO: DEBUG !!!
+        for (nb_siblings, heuristic) in (0u32..nb_created_nodes as u32).rev().zip(heuristics) {
+            trie_nodes.push(create_partial_node(
+                nb_siblings,
+                heuristic,
+                trie_chars,
+                trie_ranges,
+            ))
+        }
 
         nb_created_nodes
     };
@@ -368,7 +387,7 @@ fn fill_from_trie<N: TrieNodeDrainer>(
 
 impl<N: TrieNodeDrainer> From<N> for CompiledTrie<'_> {
     fn from(root: N) -> Self {
-        const NODES_INIT_CAP: usize = 1024;
+        const NODES_INIT_CAP: usize = 1024 * 1024;
         const CHARS_INIT_CAP: usize = 512;
         const RANGES_INIT_CAP: usize = 256;
 
