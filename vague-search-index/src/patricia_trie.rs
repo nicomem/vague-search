@@ -12,7 +12,11 @@ pub fn index_difference(first: &str, second: &str) -> Option<usize> {
 
 impl PatriciaNode {
     pub(crate) fn create_empty() -> Self {
-        Self { letters: String::new(), children: Vec::new(), freq: None }
+        Self {
+            letters: String::new(),
+            children: Vec::new(),
+            freq: None,
+        }
     }
 
     ///  Divides a node by two in indicated index and creates the childs accordingly
@@ -58,12 +62,21 @@ impl PatriciaNode {
 
     fn divide(&mut self, word: &str, frequency: NonZeroU32) -> bool {
         let index_diff = index_difference(&self.letters, &word);
-        
+
         match (index_diff, word.len().cmp(&self.letters.len())) {
-            (Some(ind), _) => { self.divide_node(word, ind, frequency); true }
-            (None, std::cmp::Ordering::Less) => { self.divide_node(word, word.len(), frequency); true }
-            (None, std::cmp::Ordering::Equal) => { self.freq = Some(frequency); true }
-            (None, _) => { false }
+            (Some(ind), _) => {
+                self.divide_node(word, ind, frequency);
+                true
+            }
+            (None, std::cmp::Ordering::Less) => {
+                self.divide_node(word, word.len(), frequency);
+                true
+            }
+            (None, std::cmp::Ordering::Equal) => {
+                self.freq = Some(frequency);
+                true
+            }
+            (None, _) => false,
         }
     }
 
@@ -78,7 +91,6 @@ impl PatriciaNode {
         let mut parent: &mut PatriciaNode = self;
         // Clone to avoid destroying given data
         let mut word_cpy = word.to_string();
-
 
         loop {
             let mut index_child: usize = 0;
@@ -196,7 +208,7 @@ impl PatriciaNode {
                     let word_cpy: String;
 
                     match child.letters.len().cmp(&word.len()) {
-                        std::cmp::Ordering::Greater => { None }
+                        std::cmp::Ordering::Greater => None,
                         std::cmp::Ordering::Equal => {
                             if child.letters != word {
                                 None
@@ -214,7 +226,6 @@ impl PatriciaNode {
                             }
                         }
                     }
-
                 }
                 Err(_) => None,
             }
