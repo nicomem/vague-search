@@ -134,8 +134,9 @@ impl PatriciaNode {
         let mut parent: &mut PatriciaNode = self;
 
         loop {
+            let word_first_char = word_cpy.chars().next().unwrap();
             let res = parent.children.binary_search_by(|child| {
-                child.letters.chars().next().cmp(&word_cpy.chars().next())
+                child.letters.chars().next().unwrap().cmp(&word_first_char)
             });
 
             let index_child = match res {
@@ -236,6 +237,7 @@ impl PatriciaNode {
     }
 
     /// Recursive search in patricia trie of a word
+    #[cfg(test)]
     pub(crate) fn search(&self, mut word: String) -> Option<&Self> {
         if self.children.is_empty() {
             None
@@ -304,7 +306,7 @@ mod tests {
     #[test]
     fn empty_creation() {
         let mut parent = empty_patricia();
-        parent.insert(&String::new(), NonZeroU32::new(1).unwrap());
+        parent.insert(String::new(), NonZeroU32::new(1).unwrap());
         assert!(parent.children.is_empty())
     }
 
@@ -312,7 +314,7 @@ mod tests {
     fn insert_one_word() {
         // Create parent and insert a child
         let mut parent = empty_patricia();
-        parent.insert(&String::from("abc"), NonZeroU32::new(1).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(1).unwrap());
 
         // Create expected result
         let expected_node = PatriciaNode {
@@ -335,9 +337,9 @@ mod tests {
         let mut parent = empty_patricia();
         let default_freq = 1;
 
-        parent.insert(&String::from("abc"), NonZeroU32::new(default_freq).unwrap());
-        parent.insert(&String::from("cab"), NonZeroU32::new(default_freq).unwrap());
-        parent.insert(&String::from("bac"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(String::from("cab"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(String::from("bac"), NonZeroU32::new(default_freq).unwrap());
 
         let expected_abc = PatriciaNode {
             letters: String::from("abc"),
@@ -366,9 +368,9 @@ mod tests {
         let mut parent = empty_patricia();
         let default_freq = 1;
 
-        parent.insert(&String::from("abc"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(default_freq).unwrap());
         parent.insert(
-            &String::from("abcdefg"),
+            String::from("abcdefg"),
             NonZeroU32::new(default_freq).unwrap(),
         );
 
@@ -395,12 +397,12 @@ mod tests {
         let default_freq = 1;
 
         parent.insert(
-            &String::from("abcdefg"),
+            String::from("abcdefg"),
             NonZeroU32::new(default_freq).unwrap(),
         );
-        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(2).unwrap());
         parent.insert(
-            &String::from("abcklm"),
+            String::from("abcklm"),
             NonZeroU32::new(default_freq).unwrap(),
         );
 
@@ -433,7 +435,7 @@ mod tests {
         let mut parent = empty_patricia();
         let default_freq = 1;
 
-        parent.insert(&String::from("abc"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(default_freq).unwrap());
 
         assert!(parent.children.len() == 1);
 
@@ -449,12 +451,12 @@ mod tests {
         let default_freq = 1;
 
         parent.insert(
-            &String::from("abcdefg"),
+            String::from("abcdefg"),
             NonZeroU32::new(default_freq).unwrap(),
         );
-        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(2).unwrap());
         parent.insert(
-            &String::from("abcklm"),
+            String::from("abcklm"),
             NonZeroU32::new(default_freq).unwrap(),
         );
 
@@ -472,16 +474,16 @@ mod tests {
         let default_freq = 1;
 
         parent.insert(
-            &String::from("abcdefg"),
+            String::from("abcdefg"),
             NonZeroU32::new(default_freq).unwrap(),
         );
-        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(2).unwrap());
 
         parent.delete(&String::from("abc"));
 
         assert!(parent.children.len() == 1);
         let only_child = parent.children.pop().unwrap();
-        assert_eq!(only_child.letters, "abcdefg");
+        assert_eq!(&only_child.letters, "abcdefg");
         assert!(only_child.children.is_empty());
     }
 
@@ -491,12 +493,12 @@ mod tests {
         let default_freq = 1;
 
         parent.insert(
-            &String::from("abcdefg"),
+            String::from("abcdefg"),
             NonZeroU32::new(default_freq).unwrap(),
         );
-        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(2).unwrap());
         parent.insert(
-            &String::from("abcklm"),
+            String::from("abcklm"),
             NonZeroU32::new(default_freq).unwrap(),
         );
 
@@ -513,7 +515,7 @@ mod tests {
     fn simple_search() {
         let mut parent = empty_patricia();
 
-        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(2).unwrap());
 
         let child = parent.search(String::from("abc"));
         assert!(child.is_some());
@@ -531,8 +533,8 @@ mod tests {
     fn inner_search() {
         let mut parent = empty_patricia();
 
-        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
-        parent.insert(&String::from("abcdefg"), NonZeroU32::new(1).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(String::from("abcdefg"), NonZeroU32::new(1).unwrap());
 
         let child = parent.search(String::from("abcdefg"));
         assert!(child.is_some());

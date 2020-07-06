@@ -51,9 +51,6 @@ fn main() -> Result<()> {
 
     let patricia_trie = PatriciaNode::create_from_file(&args.words_path)?;
 
-    println!("Everything is ok!");
-    println!("{:?}", patricia_trie.search(String::from("ailley")));
-
     let compiled: CompiledTrie = patricia_trie.into();
     let dict_file: DictionaryFile = compiled.into();
 
