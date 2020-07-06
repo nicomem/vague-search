@@ -18,6 +18,8 @@ pub enum Error {
     },
 }
 
+// Link Error to Display to print the message when an error is returned from main.
+// (taken from snafu issues, may be implemented in snafu in the future)
 impl Debug for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Display::fmt(self, f)
