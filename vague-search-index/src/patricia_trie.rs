@@ -1,7 +1,9 @@
 use crate::error::*;
 use crate::utils::read_lines;
 use snafu::*;
-use std::num::NonZeroU32;
+use std::{num::NonZeroU32, path::Path};
+use vague_search_core::TrieNodeDrainer;
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PatriciaNode {
     letters: String,
@@ -22,29 +24,29 @@ impl PatriciaNode {
         }
     }
 
-    pub(crate) fn create_from_file(filepath: &str) -> Result<Self> {
+    pub(crate) fn create_from_file(filepath: impl AsRef<Path>) -> Result<Self> {
+        let path = filepath.as_ref();
         let mut root = Self::create_empty();
-        let lines = read_lines(filepath).context(FileOpen { path: filepath })?;
-        for (line_num, line) in lines.enumerate() {
-            let wordfreq = line.context(FileRead { path: filepath })?;
+        let lines = read_lines(path).context(FileOpen { path })?;
+        for (number, line) in lines.enumerate() {
+            let wordfreq = line.context(FileRead { path })?;
             let mut iter = wordfreq.split_whitespace();
             // Parse word
             let word = iter.next().context(ContentRead {
-                path: filepath,
+                path,
                 line: &wordfreq,
-                number: line_num,
+                number,
             })?;
 
             // Parse frequency
             let freqstr = iter.next().context(ContentRead {
-                path: filepath,
+                path,
                 line: &wordfreq,
-                number: line_num,
+                number,
             })?;
-            let freq = freqstr.parse::<NonZeroU32>().context(Parsing {
-                path: filepath,
-                number: line_num,
-            })?;
+            let freq = freqstr
+                .parse::<NonZeroU32>()
+                .context(Parsing { path, number })?;
             root.insert(word, freq)
         }
         Ok(root)
@@ -153,6 +155,7 @@ impl PatriciaNode {
         }
     }
 
+    #[cfg(test)]
     fn delete_node(&mut self, word: &str, index: usize) -> bool {
         let child = self.children.get_mut(index).unwrap();
 
@@ -185,6 +188,7 @@ impl PatriciaNode {
         true
     }
 
+    #[cfg(test)]
     pub(crate) fn delete(&mut self, word: &str) {
         // No need of doing anything if the word is empty
         if word.is_empty() {
@@ -261,6 +265,20 @@ impl PatriciaNode {
                 Err(_) => None,
             }
         }
+    }
+}
+
+impl TrieNodeDrainer for PatriciaNode {
+    fn drain_characters(&mut self) -> String {
+        std::mem::replace(&mut self.letters, String::new())
+    }
+
+    fn frequency(&self) -> Option<NonZeroU32> {
+        self.freq
+    }
+
+    fn drain_children(&mut self) -> Vec<Self> {
+        std::mem::replace(&mut self.children, Vec::new())
     }
 }
 

@@ -6,7 +6,9 @@
 use error::*;
 use patricia_trie::PatriciaNode;
 use snafu::*;
-use std::{num::NonZeroU32, path::PathBuf};
+use std::path::PathBuf;
+
+use vague_search_core::{CompiledTrie, DictionaryFile};
 
 mod error;
 mod patricia_trie;
@@ -45,21 +47,16 @@ fn parse_args() -> Result<Args> {
 
 fn main() -> Result<()> {
     let args = parse_args()?;
-    dbg!(args);
 
-    let mut parent = PatriciaNode::create_empty();
-    parent.insert(&String::from("abc"), NonZeroU32::new(1).unwrap());
-    let child = parent.search(String::from("abc"));
-    assert!(child.is_some());
-    parent.delete(&String::from("abc"));
+    let patricia_trie = PatriciaNode::create_from_file(&args.words_path)?;
 
-    let new_pat = PatriciaNode::create_from_file("words.txt");
-    if let Ok(node) = new_pat {
-        println!("Everything is ok!");
-        println!("{:?}", node.search(String::from("ailley")));
-    } else {
-        println!("Ugh! Shit happened");
-    }
+    println!("Everything is ok!");
+    println!("{:?}", patricia_trie.search(String::from("ailley")));
 
-    Ok(())
+    let compiled: CompiledTrie = patricia_trie.into();
+    let dict_file: DictionaryFile = compiled.into();
+
+    dict_file.write_file(&args.dict_path).context(DictWrite {
+        path: &args.dict_path,
+    })
 }

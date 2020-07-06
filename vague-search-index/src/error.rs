@@ -31,6 +31,11 @@ pub enum Error {
         number: usize,
         source: ParseIntError,
     },
+    #[snafu(display("Could not write the dictionary in file {}: {}", path.display(), source))]
+    DictWrite {
+        path: PathBuf,
+        source: vague_search_core::Error,
+    },
 }
 
 // Link Error to Display to print the message when an error is returned from main.
