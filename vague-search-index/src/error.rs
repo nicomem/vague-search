@@ -1,11 +1,14 @@
 use snafu::Snafu;
+use std::fmt::{Debug, Display, Formatter};
 use std::{num::ParseIntError, path::PathBuf};
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, Snafu)]
+#[derive(Snafu)]
 #[snafu(visibility(pub(crate)))] // Make creatable enum variants crate-visible
 pub enum Error {
+    #[snafu(display("Usage: {} /path/to/word/freq.txt /path/to/output/dict.bin", bin_name))]
+    CliArgs { bin_name: String },
     #[snafu(display("Could not open file {}: {}", path.display(), source))]
     FileOpen {
         path: PathBuf,
@@ -28,4 +31,17 @@ pub enum Error {
         number: usize,
         source: ParseIntError,
     },
+    #[snafu(display("Could not write the dictionary in file {}: {}", path.display(), source))]
+    DictWrite {
+        path: PathBuf,
+        source: vague_search_core::Error,
+    },
+}
+
+// Link Error to Display to print the message when an error is returned from main.
+// (taken from snafu issues, may be implemented in snafu in the future)
+impl Debug for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self, f)
+    }
 }

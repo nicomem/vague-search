@@ -1,7 +1,10 @@
 use crate::error::*;
 use crate::utils::read_lines;
+use smartstring::alias::String;
 use snafu::*;
-use std::num::NonZeroU32;
+use std::{cmp::Ordering, num::NonZeroU32, path::Path};
+use vague_search_core::TrieNodeDrainer;
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PatriciaNode {
     letters: String,
@@ -22,69 +25,75 @@ impl PatriciaNode {
         }
     }
 
-    pub(crate) fn create_from_file(filepath: &str) -> Result<Self> {
+    pub(crate) fn create_from_file(filepath: impl AsRef<Path>) -> Result<Self> {
+        let path = filepath.as_ref();
         let mut root = Self::create_empty();
-        let lines = read_lines(filepath).context(FileOpen { path: filepath })?;
-        for line in lines.enumerate() {
-            let wordfreq = line.1.context(FileRead { path: filepath })?;
+        let lines = read_lines(path).context(FileOpen { path })?;
+        for (number, line) in lines.enumerate() {
+            let wordfreq = line.context(FileRead { path })?;
             let mut iter = wordfreq.split_whitespace();
             // Parse word
             let word = iter.next().context(ContentRead {
-                path: filepath,
+                path,
                 line: &wordfreq,
-                number: line.0,
+                number,
             })?;
 
             // Parse frequency
             let freqstr = iter.next().context(ContentRead {
-                path: filepath,
+                path,
                 line: &wordfreq,
-                number: line.0,
+                number,
             })?;
-            let freq = freqstr.parse::<NonZeroU32>().context(Parsing {
-                path: filepath,
-                number: line.0,
-            })?;
+            let freq = freqstr
+                .parse::<NonZeroU32>()
+                .context(Parsing { path, number })?;
             root.insert(word, freq)
         }
         Ok(root)
     }
 
-    ///  Divides a node by two in indicated index and creates the childs accordingly
+    /// Divides a node by two in indicated index and creates the childs accordingly
     fn divide_node(&mut self, word: &str, ind: usize, frequency: NonZeroU32) {
+        // Divide the current node into the current and a new one
         let second_part = self.letters.split_off(ind);
-
-        let mut new_node = PatriciaNode {
+        let second_part_node = PatriciaNode {
             letters: second_part,
-            children: Vec::new(),
-            freq: self.freq,
+            children: std::mem::replace(&mut self.children, Vec::new()),
+            freq: self.freq.take(),
         };
-        // Swap children
-        std::mem::swap(&mut self.children, &mut new_node.children);
 
+        // Remove the same prefix from the word to insert
         let (_, second_word) = word.split_at(ind);
-        self.children = vec![new_node];
-        self.freq = None;
-        // Split off already changed letters
 
-        // push node only if word to insert isn't empty
-        if !second_word.is_empty() {
+        if second_word.is_empty() {
+            // If the word to insert consisted only of the prefix,
+            // mark the current node as an end node and set the second part node
+            // as the only child
+            self.freq = Some(frequency);
+            self.children = vec![second_part_node];
+        } else {
+            // Create the word node and set the children as both nodes,
+            // sorted by their letters
             let new_word_node = PatriciaNode {
-                letters: second_word.to_string(),
+                letters: String::from(second_word),
                 children: Vec::new(),
                 freq: Some(frequency),
             };
-            self.children.push(new_word_node);
-        }
-        // otherwise current node is a word, add the frequency
-        else {
-            self.freq = Some(frequency);
+
+            let sec_first_char = second_part_node.letters.chars().next().unwrap();
+            let new_first_char = new_word_node.letters.chars().next().unwrap();
+            match new_first_char.cmp(&sec_first_char) {
+                Ordering::Less => self.children = vec![new_word_node, second_part_node],
+                Ordering::Equal => unreachable!(),
+                Ordering::Greater => self.children = vec![second_part_node, new_word_node],
+            }
         }
     }
 
     fn create_and_insert_at(&mut self, index: usize, word: &str, frequency: NonZeroU32) {
         let child = PatriciaNode {
-            letters: word.to_string(),
+            letters: String::from(word),
             children: Vec::new(),
             freq: Some(frequency),
         };
@@ -112,47 +121,49 @@ impl PatriciaNode {
     }
 
     /// Insert a word and its frequency in the patricia trie
-    pub(crate) fn insert(&mut self, word: &str, frequency: NonZeroU32) {
+    pub(crate) fn insert(&mut self, word: impl Into<String>, frequency: NonZeroU32) {
+        // Clone to avoid destroying given data
+        let mut word_cpy = word.into();
+
         // No need of doing anything if the word is empty
-        if word.is_empty() {
+        if word_cpy.is_empty() {
             return;
         }
 
         // Mutable pointer to switch between the parents and children
         let mut parent: &mut PatriciaNode = self;
-        // Clone to avoid destroying given data
-        let mut word_cpy = word.to_string();
 
         loop {
-            let mut index_child: usize = 0;
-
+            let word_first_char = word_cpy.chars().next().unwrap();
             let res = parent.children.binary_search_by(|child| {
-                child.letters.chars().next().cmp(&word_cpy.chars().next())
+                child.letters.chars().next().unwrap().cmp(&word_first_char)
             });
 
-            let inserted = match res {
+            let index_child = match res {
                 Ok(r) => {
-                    let child = parent.children.get_mut(r).unwrap();
+                    let child = &mut parent.children[r];
                     let insrt = child.divide(&word_cpy, frequency);
                     if !insrt {
-                        index_child = r;
                         word_cpy = word_cpy.split_off(child.letters.len());
+                        Some(r)
+                    } else {
+                        None
                     }
-                    insrt
                 }
                 Err(r) => {
                     parent.create_and_insert_at(r, &word_cpy, frequency);
-                    true
+                    None
                 }
             };
-            if inserted {
-                break;
-            }
 
-            parent = parent.children.get_mut(index_child).unwrap()
+            match index_child {
+                Some(i) => parent = &mut parent.children[i],
+                None => break,
+            }
         }
     }
 
+    #[cfg(test)]
     fn delete_node(&mut self, word: &str, index: usize) -> bool {
         let child = self.children.get_mut(index).unwrap();
 
@@ -163,7 +174,7 @@ impl PatriciaNode {
         }
 
         // Both words are not equal, consider as deleted node
-        if child.letters != word {
+        if &child.letters != word {
             return true;
         }
 
@@ -185,6 +196,7 @@ impl PatriciaNode {
         true
     }
 
+    #[cfg(test)]
     pub(crate) fn delete(&mut self, word: &str) {
         // No need of doing anything if the word is empty
         if word.is_empty() {
@@ -225,6 +237,7 @@ impl PatriciaNode {
     }
 
     /// Recursive search in patricia trie of a word
+    #[cfg(test)]
     pub(crate) fn search(&self, mut word: String) -> Option<&Self> {
         if self.children.is_empty() {
             None
@@ -264,6 +277,20 @@ impl PatriciaNode {
     }
 }
 
+impl TrieNodeDrainer for PatriciaNode {
+    fn drain_characters(&mut self) -> std::string::String {
+        std::mem::replace(&mut self.letters, String::new()).into()
+    }
+
+    fn frequency(&self) -> Option<NonZeroU32> {
+        self.freq
+    }
+
+    fn drain_children(&mut self) -> Vec<Self> {
+        std::mem::replace(&mut self.children, Vec::new())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -279,7 +306,7 @@ mod tests {
     #[test]
     fn empty_creation() {
         let mut parent = empty_patricia();
-        parent.insert(&String::new(), NonZeroU32::new(1).unwrap());
+        parent.insert(String::new(), NonZeroU32::new(1).unwrap());
         assert!(parent.children.is_empty())
     }
 
@@ -287,7 +314,7 @@ mod tests {
     fn insert_one_word() {
         // Create parent and insert a child
         let mut parent = empty_patricia();
-        parent.insert(&String::from("abc"), NonZeroU32::new(1).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(1).unwrap());
 
         // Create expected result
         let expected_node = PatriciaNode {
@@ -310,9 +337,9 @@ mod tests {
         let mut parent = empty_patricia();
         let default_freq = 1;
 
-        parent.insert(&String::from("abc"), NonZeroU32::new(default_freq).unwrap());
-        parent.insert(&String::from("cab"), NonZeroU32::new(default_freq).unwrap());
-        parent.insert(&String::from("bac"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(String::from("cab"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(String::from("bac"), NonZeroU32::new(default_freq).unwrap());
 
         let expected_abc = PatriciaNode {
             letters: String::from("abc"),
@@ -341,9 +368,9 @@ mod tests {
         let mut parent = empty_patricia();
         let default_freq = 1;
 
-        parent.insert(&String::from("abc"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(default_freq).unwrap());
         parent.insert(
-            &String::from("abcdefg"),
+            String::from("abcdefg"),
             NonZeroU32::new(default_freq).unwrap(),
         );
 
@@ -370,12 +397,12 @@ mod tests {
         let default_freq = 1;
 
         parent.insert(
-            &String::from("abcdefg"),
+            String::from("abcdefg"),
             NonZeroU32::new(default_freq).unwrap(),
         );
-        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(2).unwrap());
         parent.insert(
-            &String::from("abcklm"),
+            String::from("abcklm"),
             NonZeroU32::new(default_freq).unwrap(),
         );
 
@@ -408,7 +435,7 @@ mod tests {
         let mut parent = empty_patricia();
         let default_freq = 1;
 
-        parent.insert(&String::from("abc"), NonZeroU32::new(default_freq).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(default_freq).unwrap());
 
         assert!(parent.children.len() == 1);
 
@@ -424,12 +451,12 @@ mod tests {
         let default_freq = 1;
 
         parent.insert(
-            &String::from("abcdefg"),
+            String::from("abcdefg"),
             NonZeroU32::new(default_freq).unwrap(),
         );
-        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(2).unwrap());
         parent.insert(
-            &String::from("abcklm"),
+            String::from("abcklm"),
             NonZeroU32::new(default_freq).unwrap(),
         );
 
@@ -447,16 +474,16 @@ mod tests {
         let default_freq = 1;
 
         parent.insert(
-            &String::from("abcdefg"),
+            String::from("abcdefg"),
             NonZeroU32::new(default_freq).unwrap(),
         );
-        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(2).unwrap());
 
         parent.delete(&String::from("abc"));
 
         assert!(parent.children.len() == 1);
         let only_child = parent.children.pop().unwrap();
-        assert_eq!(only_child.letters, "abcdefg");
+        assert_eq!(&only_child.letters, "abcdefg");
         assert!(only_child.children.is_empty());
     }
 
@@ -466,12 +493,12 @@ mod tests {
         let default_freq = 1;
 
         parent.insert(
-            &String::from("abcdefg"),
+            String::from("abcdefg"),
             NonZeroU32::new(default_freq).unwrap(),
         );
-        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(2).unwrap());
         parent.insert(
-            &String::from("abcklm"),
+            String::from("abcklm"),
             NonZeroU32::new(default_freq).unwrap(),
         );
 
@@ -488,7 +515,7 @@ mod tests {
     fn simple_search() {
         let mut parent = empty_patricia();
 
-        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(2).unwrap());
 
         let child = parent.search(String::from("abc"));
         assert!(child.is_some());
@@ -506,8 +533,8 @@ mod tests {
     fn inner_search() {
         let mut parent = empty_patricia();
 
-        parent.insert(&String::from("abc"), NonZeroU32::new(2).unwrap());
-        parent.insert(&String::from("abcdefg"), NonZeroU32::new(1).unwrap());
+        parent.insert(String::from("abc"), NonZeroU32::new(2).unwrap());
+        parent.insert(String::from("abcdefg"), NonZeroU32::new(1).unwrap());
 
         let child = parent.search(String::from("abcdefg"));
         assert!(child.is_some());

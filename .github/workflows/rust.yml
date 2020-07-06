@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Check Rustfmt
+      run: cargo fmt -- --check
     - name: Run Clippy
       run: cargo clippy --workspace -- -D warnings
     - name: Run tests
