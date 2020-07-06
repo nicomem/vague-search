@@ -10,6 +10,7 @@ use std::{num::NonZeroU32, path::PathBuf};
 
 mod error;
 mod patricia_trie;
+mod utils;
 
 /// Represents the expected parsed program arguments.
 #[derive(Debug)]
@@ -51,6 +52,14 @@ fn main() -> Result<()> {
     let child = parent.search(String::from("abc"));
     assert!(child.is_some());
     parent.delete(&String::from("abc"));
+
+    let new_pat = PatriciaNode::create_from_file("words.txt");
+    if let Ok(node) = new_pat {
+        println!("Everything is ok!");
+        println!("{:?}", node.search(String::from("ailley")));
+    } else {
+        println!("Ugh! Shit happened");
+    }
 
     Ok(())
 }

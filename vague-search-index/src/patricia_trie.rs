@@ -1,3 +1,6 @@
+use crate::error::*;
+use crate::utils::read_lines;
+use snafu::*;
 use std::num::NonZeroU32;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PatriciaNode {
@@ -17,6 +20,34 @@ impl PatriciaNode {
             children: Vec::new(),
             freq: None,
         }
+    }
+
+    pub(crate) fn create_from_file(filepath: &str) -> Result<Self> {
+        let mut root = Self::create_empty();
+        let lines = read_lines(filepath).context(FileOpen { path: filepath })?;
+        for (line_num, line) in lines.enumerate() {
+            let wordfreq = line.context(FileRead { path: filepath })?;
+            let mut iter = wordfreq.split_whitespace();
+            // Parse word
+            let word = iter.next().context(ContentRead {
+                path: filepath,
+                line: &wordfreq,
+                number: line_num,
+            })?;
+
+            // Parse frequency
+            let freqstr = iter.next().context(ContentRead {
+                path: filepath,
+                line: &wordfreq,
+                number: line_num,
+            })?;
+            let freq = freqstr.parse::<NonZeroU32>().context(Parsing {
+                path: filepath,
+                number: line_num,
+            })?;
+            root.insert(word, freq)
+        }
+        Ok(root)
     }
 
     ///  Divides a node by two in indicated index and creates the childs accordingly
