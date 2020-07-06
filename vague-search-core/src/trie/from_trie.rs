@@ -335,14 +335,6 @@ fn fill_from_trie<N: TrieNodeDrainer>(
 
         // Partially create the nodes in the heuristics.
         // Fill all information available without recursion.
-        // let partial_nodes = (0u32..nb_created_nodes as u32).rev().zip(heuristics).map(
-        //     |(nb_siblings, heuristic)| {
-        //         create_partial_node(nb_siblings, heuristic, trie_chars, trie_ranges)
-        //     },
-        // );
-        // trie_nodes.extend(partial_nodes);
-
-        // TODO: DEBUG !!!
         for (nb_siblings, heuristic) in (0u32..nb_created_nodes as u32).rev().zip(heuristics) {
             trie_nodes.push(create_partial_node(
                 nb_siblings,
