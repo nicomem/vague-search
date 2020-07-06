@@ -1,7 +1,7 @@
 use crate::error::*;
 use crate::utils::read_lines;
 use snafu::*;
-use std::{num::NonZeroU32, path::Path};
+use std::{cmp::Ordering, num::NonZeroU32, path::Path};
 use vague_search_core::TrieNodeDrainer;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -52,35 +52,41 @@ impl PatriciaNode {
         Ok(root)
     }
 
-    ///  Divides a node by two in indicated index and creates the childs accordingly
+    /// Divides a node by two in indicated index and creates the childs accordingly
     fn divide_node(&mut self, word: &str, ind: usize, frequency: NonZeroU32) {
+        // Divide the current node into the current and a new one
         let second_part = self.letters.split_off(ind);
-
-        let mut new_node = PatriciaNode {
+        let second_part_node = PatriciaNode {
             letters: second_part,
-            children: Vec::new(),
-            freq: self.freq,
+            children: std::mem::replace(&mut self.children, Vec::new()),
+            freq: self.freq.take(),
         };
-        // Swap children
-        std::mem::swap(&mut self.children, &mut new_node.children);
 
+        // Remove the same prefix from the word to insert
         let (_, second_word) = word.split_at(ind);
-        self.children = vec![new_node];
-        self.freq = None;
-        // Split off already changed letters
 
-        // push node only if word to insert isn't empty
-        if !second_word.is_empty() {
+        if second_word.is_empty() {
+            // If the word to insert consisted only of the prefix,
+            // mark the current node as an end node and set the second part node
+            // as the only child
+            self.freq = Some(frequency);
+            self.children = vec![second_part_node];
+        } else {
+            // Create the word node and set the children as both nodes,
+            // sorted by their letters
             let new_word_node = PatriciaNode {
                 letters: second_word.to_string(),
                 children: Vec::new(),
                 freq: Some(frequency),
             };
-            self.children.push(new_word_node);
-        }
-        // otherwise current node is a word, add the frequency
-        else {
-            self.freq = Some(frequency);
+
+            let sec_first_char = second_part_node.letters.chars().next().unwrap();
+            let new_first_char = new_word_node.letters.chars().next().unwrap();
+            match new_first_char.cmp(&sec_first_char) {
+                Ordering::Less => self.children = vec![new_word_node, second_part_node],
+                Ordering::Equal => unreachable!(),
+                Ordering::Greater => self.children = vec![second_part_node, new_word_node],
+            }
         }
     }
 
@@ -114,44 +120,44 @@ impl PatriciaNode {
     }
 
     /// Insert a word and its frequency in the patricia trie
-    pub(crate) fn insert(&mut self, word: &str, frequency: NonZeroU32) {
+    pub(crate) fn insert(&mut self, word: impl Into<String>, frequency: NonZeroU32) {
+        // Clone to avoid destroying given data
+        let mut word_cpy = word.into();
+
         // No need of doing anything if the word is empty
-        if word.is_empty() {
+        if word_cpy.is_empty() {
             return;
         }
 
         // Mutable pointer to switch between the parents and children
         let mut parent: &mut PatriciaNode = self;
-        // Clone to avoid destroying given data
-        let mut word_cpy = word.to_string();
 
         loop {
-            let mut index_child: usize = 0;
-
             let res = parent.children.binary_search_by(|child| {
                 child.letters.chars().next().cmp(&word_cpy.chars().next())
             });
 
-            let inserted = match res {
+            let index_child = match res {
                 Ok(r) => {
-                    let child = parent.children.get_mut(r).unwrap();
+                    let child = &mut parent.children[r];
                     let insrt = child.divide(&word_cpy, frequency);
                     if !insrt {
-                        index_child = r;
                         word_cpy = word_cpy.split_off(child.letters.len());
+                        Some(r)
+                    } else {
+                        None
                     }
-                    insrt
                 }
                 Err(r) => {
                     parent.create_and_insert_at(r, &word_cpy, frequency);
-                    true
+                    None
                 }
             };
-            if inserted {
-                break;
-            }
 
-            parent = parent.children.get_mut(index_child).unwrap()
+            match index_child {
+                Some(i) => parent = &mut parent.children[i],
+                None => break,
+            }
         }
     }
 

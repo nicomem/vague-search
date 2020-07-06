@@ -1,5 +1,9 @@
 use crate::{trie::trie_node_interface::TrieNodeDrainer, *};
-use std::{borrow::Cow, num::NonZeroU32, ops::Range};
+use std::{
+    borrow::Cow,
+    num::{NonZeroU32, NonZeroUsize},
+    ops::Range,
+};
 use utils::char_dist;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -174,8 +178,9 @@ fn node_type_heuristic<N: TrieNodeDrainer>(
     let mut cur_range = Vec::new();
 
     'for_nodes: for (i, (node, chars)) in nodes.iter().zip(nodes_chars).enumerate() {
-        let is_one_char = chars.chars().nth(1).is_none();
-        let first_char = chars.chars().next();
+        let mut chars_it = chars.chars();
+        let first_char = chars_it.next();
+        let is_one_char = chars_it.next().is_none();
 
         // Check the range state and either:
         // - add a character to the range and continue the loop
@@ -240,6 +245,59 @@ fn create_partial_node<N: TrieNodeDrainer>(
     }
 }
 
+/// Find the first index >= at the current which is a dummy node
+/// (see the add_range function)
+fn find_next_dummy_range_node(
+    trie_ranges: &[RangeElement],
+    mut current_range_index: usize,
+) -> usize {
+    // Since the range does not end with a not present element,
+    // the loop does not out-of-bounds.
+    while trie_ranges[current_range_index].index_first_child.is_none() {
+        current_range_index += 1;
+    }
+    current_range_index
+}
+
+/// Finish the current partial node and advance the current indices.
+/// Return the updated (partial_i, range_i).
+fn finish_current_partial_node(
+    trie_nodes: &mut [trie::trie_node::CompiledTrieNode],
+    trie_ranges: &mut [RangeElement],
+    index_first_child: Option<IndexNodeNonZero>,
+    (partial_i, range_i): (usize, Option<NonZeroUsize>),
+) -> (usize, Option<NonZeroUsize>) {
+    match trie_nodes[partial_i] {
+        CompiledTrieNode::PatriciaNode(ref mut n) => {
+            // Fill the partial node and advance to the next
+            n.index_first_child = index_first_child;
+            (partial_i + 1, None)
+        }
+        CompiledTrieNode::NaiveNode(ref mut n) => {
+            // Fill the partial node and advance to the next
+            n.index_first_child = index_first_child;
+            (partial_i + 1, None)
+        }
+        CompiledTrieNode::RangeNode(ref n) => {
+            let cur_i = range_i.map_or(usize::from(n.range.start), usize::from);
+            let next_i = find_next_dummy_range_node(trie_ranges, cur_i);
+
+            debug_assert!(next_i <= usize::from(n.range.end));
+
+            // Replace the dummy index with the correct one
+            trie_ranges[next_i].index_first_child = index_first_child;
+
+            // If we just filled the last element, advance to the next partial node
+            // else advance in the range
+            if next_i + 1 >= usize::from(n.range.end) {
+                (partial_i + 1, None)
+            } else {
+                (partial_i, NonZeroUsize::new(next_i + 1))
+            }
+        }
+    }
+}
+
 /// Append the information of the given node and its children
 /// to the three [CompiledTrie](crate::CompiledTrie) vectors.
 fn fill_from_trie<N: TrieNodeDrainer>(
@@ -250,74 +308,61 @@ fn fill_from_trie<N: TrieNodeDrainer>(
 ) {
     // Drain the children from the node and their characters
     let mut children = node.drain_children();
-    let children_chars = extract_characters(&mut children);
-    let heuristics = node_type_heuristic(&children, children_chars);
-    let nb_created_nodes = heuristics.len();
 
-    // Partially create the nodes in the heuristics.
-    // Fill all information available without recursion.
-    let partial_nodes =
-        (0u32..nb_created_nodes as u32)
-            .rev()
-            .zip(heuristics)
-            .map(|(nb_siblings, heuristic)| {
+    let nb_created_nodes = {
+        let children_chars = extract_characters(&mut children);
+        debug_assert_eq!(
+            children_chars
+                .iter()
+                .flat_map(|s| s.chars().next())
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+            children_chars.len(),
+            "Multiple children begin with the same character"
+        );
+
+        let heuristics = node_type_heuristic(&children, children_chars);
+        let nb_created_nodes = heuristics.len();
+
+        // Partially create the nodes in the heuristics.
+        // Fill all information available without recursion.
+        let partial_nodes = (0u32..nb_created_nodes as u32).rev().zip(heuristics).map(
+            |(nb_siblings, heuristic)| {
                 create_partial_node(nb_siblings, heuristic, trie_chars, trie_ranges)
-            });
-    trie_nodes.extend(partial_nodes);
+            },
+        );
+        trie_nodes.extend(partial_nodes);
+
+        nb_created_nodes
+    };
 
     // Call recursively and finish the partial nodes
     let mut partial_i = trie_nodes.len() - nb_created_nodes;
-    let mut range_i = 0;
-    for child in children.into_iter() {
-        // The first child will be placed at the next index in the nodes vector
-        let mut index_first_child = trie_nodes.len() as u32;
+    let mut range_i = None;
+    for child in children {
+        let nb_nodes_before = trie_nodes.len();
 
         // Call recursively with for the current node
         fill_from_trie(child, trie_nodes, trie_chars, trie_ranges);
 
-        // If no new node added => no child
-        // Set the index_first_child to 0 => Node field will be set to None because
-        // it is a Option<NonZero>
-        if trie_nodes.len() as u32 == index_first_child {
-            index_first_child = 0;
-        }
+        let index_first_child = if trie_nodes.len() == nb_nodes_before {
+            // If no new node added => no child
+            None
+        } else {
+            // The first child will be placed at the next index in the nodes vector
+            NonZeroU32::new(nb_nodes_before as _).map(IndexNodeNonZero::new)
+        };
 
         // Finish the current partial node
-        match trie_nodes[partial_i] {
-            CompiledTrieNode::PatriciaNode(ref mut n) => {
-                // Fill the partial node and advance to the next
-                n.index_first_child = NonZeroU32::new(index_first_child).map(IndexNodeNonZero::new);
-                partial_i += 1;
-            }
-            CompiledTrieNode::NaiveNode(ref mut n) => {
-                // Fill the partial node and advance to the next
-                n.index_first_child = NonZeroU32::new(index_first_child).map(IndexNodeNonZero::new);
-                partial_i += 1;
-            }
-            CompiledTrieNode::RangeNode(ref n) => {
-                let index = || (*n.range.start + range_i) as usize;
+        let (new_partial_i, new_range_i) = finish_current_partial_node(
+            trie_nodes,
+            trie_ranges,
+            index_first_child,
+            (partial_i, range_i),
+        );
 
-                // Get the first element which is marked with the dummy index
-                // (see the add_range function)
-                // Since the range does not end with a not present element,
-                // the loop does not out-of-bounds.
-                while trie_ranges[index()].index_first_child != dummy_index() {
-                    partial_i += 1;
-                    debug_assert!(index() <= *n.range.end as usize);
-                }
-
-                // Replace the dummy index with the correct one
-                trie_ranges[index()].index_first_child =
-                    NonZeroU32::new(index_first_child).map(IndexNodeNonZero::new);
-
-                // If we just filled the last element, advance to the next partial node
-                // else advance in the range
-                if index() + 1 >= *n.range.end as usize {
-                    partial_i += 1;
-                    range_i = 0;
-                }
-            }
-        }
+        partial_i = new_partial_i;
+        range_i = new_range_i;
     }
 }
 
@@ -355,18 +400,7 @@ mod test {
 
     impl TrieNodeDrainer for NodeDrainer {
         fn drain_characters(&mut self) -> String {
-            let nb_chars_before = self.characters.len();
-
-            let mut ret = String::new();
-            std::mem::swap(&mut self.characters, &mut ret);
-
-            if nb_chars_before == 0 {
-                assert_eq!(ret, String::new());
-            } else {
-                assert_eq!(ret.len(), nb_chars_before);
-            }
-            assert_eq!(self.characters, String::new());
-            ret
+            std::mem::replace(&mut self.characters, String::new())
         }
 
         fn frequency(&self) -> Option<NonZeroU32> {
@@ -374,18 +408,7 @@ mod test {
         }
 
         fn drain_children(&mut self) -> Vec<Self> {
-            let nb_children_before = self.children.len();
-
-            let mut ret = Vec::new();
-            std::mem::swap(&mut self.children, &mut ret);
-
-            if nb_children_before == 0 {
-                assert_eq!(ret, vec![]);
-            } else {
-                assert_eq!(ret.len(), nb_children_before);
-            }
-            assert_eq!(self.children, vec![]);
-            ret
+            std::mem::replace(&mut self.children, Vec::new())
         }
     }
 

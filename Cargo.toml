@@ -9,7 +9,12 @@ edition = "2018"
 [workspace]
 members = [".", "vague-search-core", "vague-search-index"]
 
+[[bin]]
+name = "vague-search-index"
+path = "vague-search-index/src/main.rs"
+
 [profile.release]
+debug = true
 lto = "fat"
 panic = "abort"
 
