@@ -16,15 +16,16 @@ pub enum Error {
         path: PathBuf,
         source: std::io::Error,
     },
-    #[snafu(display("Could not divide in word and frequency in file {}: {}", path.display(), line))]
+    #[snafu(display("Could not divide in word and frequency in file {} at line {}: {}", path.display(), number, line))]
     ContentRead {
         path: PathBuf,
         line: String,
         number: usize,
     },
-    #[snafu(display("Could not parse in non zero integer in file {}: {}", path.display(), source))]
+    #[snafu(display("Could not parse in non zero integer in file {} at line {}: {}", path.display(), number, source))]
     Parsing {
         path: PathBuf,
+        number: usize,
         source: ParseIntError,
     },
 }

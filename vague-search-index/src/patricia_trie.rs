@@ -41,9 +41,10 @@ impl PatriciaNode {
                 line: &wordfreq,
                 number: line.0,
             })?;
-            let freq = freqstr
-                .parse::<NonZeroU32>()
-                .context(Parsing { path: filepath })?;
+            let freq = freqstr.parse::<NonZeroU32>().context(Parsing {
+                path: filepath,
+                number: line.0,
+            })?;
             root.insert(word, freq)
         }
         Ok(root)
