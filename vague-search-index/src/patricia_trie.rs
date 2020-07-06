@@ -1,4 +1,6 @@
+use crate::error::*;
 use crate::utils::read_lines;
+use snafu::*;
 use std::num::NonZeroU32;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PatriciaNode {
@@ -20,30 +22,29 @@ impl PatriciaNode {
         }
     }
 
-    pub(crate) fn create_from_file(filepath: &str) -> Option<Self> {
+    pub(crate) fn create_from_file(filepath: &str) -> Result<Self> {
         let mut root = Self::create_empty();
-        if let Ok(lines) = read_lines(filepath) {
-            for line in lines {
-                if let Ok(wordfreq) = line {
-                    let mut iter = wordfreq.split_whitespace();
-                    let word = match iter.next() {
-                        None => return None,
-                        Some(v) => v,
-                    };
-                    let freq = match iter.next() {
-                        None => return None,
-                        Some(f) => {
-                            let rs = f.parse::<NonZeroU32>();
-                            if let Ok(r) = rs { r } else { return None }
-                        }
-                    };
-                    root.insert(word, freq)
-                }
-            }
-            Some(root)
-        } else {
-            None
+        let lines = read_lines(filepath).context(FileOpen { path: filepath })?;
+        for line in lines {
+            let wordfreq = line.context(FileRead { path: filepath })?;
+            let mut iter = wordfreq.split_whitespace();
+            // Parse word
+            let word = iter.next().context(ContentRead {
+                path: filepath,
+                line: &wordfreq,
+            })?;
+
+            // Parse frequency
+            let freqstr = iter.next().context(ContentRead {
+                path: filepath,
+                line: &wordfreq,
+            })?;
+            let freq = freqstr
+                .parse::<NonZeroU32>()
+                .context(Parsing { path: filepath })?;
+            root.insert(word, freq)
         }
+        Ok(root)
     }
 
     ///  Divides a node by two in indicated index and creates the childs accordingly
