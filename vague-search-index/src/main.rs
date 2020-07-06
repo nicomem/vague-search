@@ -24,16 +24,16 @@ fn parse_args() -> Result<Args> {
     let mut args = std::env::args();
 
     let bin_name = args.next().unwrap_or_else(|| BIN_NAME_DEFAULT.to_string());
-    let cliargs_ctx = || CliArgs {
-        bin_name: bin_name.clone(),
+    let cliargs_ctx = CliArgs {
+        bin_name: &bin_name,
     };
 
-    let words_path = args.next().with_context(cliargs_ctx)?.into();
-    let dict_path = args.next().with_context(cliargs_ctx)?.into();
+    let words_path = args.next().context(cliargs_ctx)?.into();
+    let dict_path = args.next().context(cliargs_ctx)?.into();
 
     // Make sure no more argument has been given
     if args.next().is_some() {
-        None.with_context(cliargs_ctx)?;
+        None.context(cliargs_ctx)?;
     }
 
     Ok(Args {
