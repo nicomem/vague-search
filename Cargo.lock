@@ -64,6 +64,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "vague-search"
 version = "0.1.0"
 dependencies = [
+ "snafu 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "vague-search-core 0.1.0",
 ]
 
@@ -79,6 +80,7 @@ dependencies = [
 name = "vague-search-index"
 version = "0.1.0"
 dependencies = [
+ "snafu 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "vague-search-core 0.1.0",
 ]
 
