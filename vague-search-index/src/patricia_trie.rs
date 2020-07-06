@@ -1,3 +1,6 @@
+use crate::error::*;
+use crate::utils::read_lines;
+use snafu::*;
 use std::num::NonZeroU32;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PatriciaNode {
@@ -12,7 +15,39 @@ pub fn index_difference(first: &str, second: &str) -> Option<usize> {
 
 impl PatriciaNode {
     pub(crate) fn create_empty() -> Self {
-        Self { letters: String::new(), children: Vec::new(), freq: None }
+        Self {
+            letters: String::new(),
+            children: Vec::new(),
+            freq: None,
+        }
+    }
+
+    pub(crate) fn create_from_file(filepath: &str) -> Result<Self> {
+        let mut root = Self::create_empty();
+        let lines = read_lines(filepath).context(FileOpen { path: filepath })?;
+        for line in lines.enumerate() {
+            let wordfreq = line.1.context(FileRead { path: filepath })?;
+            let mut iter = wordfreq.split_whitespace();
+            // Parse word
+            let word = iter.next().context(ContentRead {
+                path: filepath,
+                line: &wordfreq,
+                number: line.0,
+            })?;
+
+            // Parse frequency
+            let freqstr = iter.next().context(ContentRead {
+                path: filepath,
+                line: &wordfreq,
+                number: line.0,
+            })?;
+            let freq = freqstr.parse::<NonZeroU32>().context(Parsing {
+                path: filepath,
+                number: line.0,
+            })?;
+            root.insert(word, freq)
+        }
+        Ok(root)
     }
 
     ///  Divides a node by two in indicated index and creates the childs accordingly
@@ -58,12 +93,21 @@ impl PatriciaNode {
 
     fn divide(&mut self, word: &str, frequency: NonZeroU32) -> bool {
         let index_diff = index_difference(&self.letters, &word);
-        
+
         match (index_diff, word.len().cmp(&self.letters.len())) {
-            (Some(ind), _) => { self.divide_node(word, ind, frequency); true }
-            (None, std::cmp::Ordering::Less) => { self.divide_node(word, word.len(), frequency); true }
-            (None, std::cmp::Ordering::Equal) => { self.freq = Some(frequency); true }
-            (None, _) => { false }
+            (Some(ind), _) => {
+                self.divide_node(word, ind, frequency);
+                true
+            }
+            (None, std::cmp::Ordering::Less) => {
+                self.divide_node(word, word.len(), frequency);
+                true
+            }
+            (None, std::cmp::Ordering::Equal) => {
+                self.freq = Some(frequency);
+                true
+            }
+            (None, _) => false,
         }
     }
 
@@ -78,7 +122,6 @@ impl PatriciaNode {
         let mut parent: &mut PatriciaNode = self;
         // Clone to avoid destroying given data
         let mut word_cpy = word.to_string();
-
 
         loop {
             let mut index_child: usize = 0;
@@ -196,7 +239,7 @@ impl PatriciaNode {
                     let word_cpy: String;
 
                     match child.letters.len().cmp(&word.len()) {
-                        std::cmp::Ordering::Greater => { None }
+                        std::cmp::Ordering::Greater => None,
                         std::cmp::Ordering::Equal => {
                             if child.letters != word {
                                 None
@@ -214,7 +257,6 @@ impl PatriciaNode {
                             }
                         }
                     }
-
                 }
                 Err(_) => None,
             }
