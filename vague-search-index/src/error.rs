@@ -17,7 +17,11 @@ pub enum Error {
         source: std::io::Error,
     },
     #[snafu(display("Could not divide in word and frequency in file {}: {}", path.display(), line))]
-    ContentRead { path: PathBuf, line: String },
+    ContentRead {
+        path: PathBuf,
+        line: String,
+        number: usize,
+    },
     #[snafu(display("Could not parse in non zero integer in file {}: {}", path.display(), source))]
     Parsing {
         path: PathBuf,

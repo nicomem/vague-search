@@ -25,19 +25,21 @@ impl PatriciaNode {
     pub(crate) fn create_from_file(filepath: &str) -> Result<Self> {
         let mut root = Self::create_empty();
         let lines = read_lines(filepath).context(FileOpen { path: filepath })?;
-        for line in lines {
-            let wordfreq = line.context(FileRead { path: filepath })?;
+        for line in lines.enumerate() {
+            let wordfreq = line.1.context(FileRead { path: filepath })?;
             let mut iter = wordfreq.split_whitespace();
             // Parse word
             let word = iter.next().context(ContentRead {
                 path: filepath,
                 line: &wordfreq,
+                number: line.0,
             })?;
 
             // Parse frequency
             let freqstr = iter.next().context(ContentRead {
                 path: filepath,
                 line: &wordfreq,
+                number: line.0,
             })?;
             let freq = freqstr
                 .parse::<NonZeroU32>()
