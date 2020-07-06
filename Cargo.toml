@@ -4,17 +4,15 @@ version = "0.1.0"
 authors = ["Nicolas Mémeint", "Tom Méchineau"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [workspace]
 members = [".", "vague-search-core", "vague-search-index"]
 
-[[bin]]
-name = "vague-search-index"
-path = "vague-search-index/src/main.rs"
+# # Uncomment this to please cargo-flamegraph
+# [[bin]]
+# name = "vague-search-index"
+# path = "vague-search-index/src/main.rs"
 
 [profile.release]
-debug = true
 lto = "fat"
 panic = "abort"
 

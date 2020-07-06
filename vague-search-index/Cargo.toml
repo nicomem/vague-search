@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 vague-search-core = { path = "../vague-search-core" }
 snafu = "0.6"
+smartstring = "0.2"

@@ -5,6 +5,7 @@
 
 use error::*;
 use patricia_trie::PatriciaNode;
+use smartstring::alias::String;
 use snafu::*;
 use std::path::PathBuf;
 

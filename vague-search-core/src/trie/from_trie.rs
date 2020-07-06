@@ -27,7 +27,7 @@ const fn dummy_index() -> Option<IndexNodeNonZero> {
 /// If the characters are already present in the vector, it may not insert them
 /// and instead return the already present characters range of index.
 fn add_chars(big_string: &mut String, chars: &str) -> Range<IndexChar> {
-    const SEARCH_LIMIT: usize = 256;
+    const SEARCH_LIMIT: usize = 2048;
     let mut byte_windows = big_string
         .as_bytes()
         .windows(chars.len())
@@ -388,8 +388,8 @@ fn fill_from_trie<N: TrieNodeDrainer>(
 impl<N: TrieNodeDrainer> From<N> for CompiledTrie<'_> {
     fn from(root: N) -> Self {
         const NODES_INIT_CAP: usize = 1024 * 1024;
-        const CHARS_INIT_CAP: usize = 512;
-        const RANGES_INIT_CAP: usize = 256;
+        const CHARS_INIT_CAP: usize = 1024;
+        const RANGES_INIT_CAP: usize = 512 * 1024;
 
         let mut nodes = Vec::with_capacity(NODES_INIT_CAP);
         let mut big_string = String::with_capacity(CHARS_INIT_CAP);

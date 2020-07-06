@@ -8,4 +8,4 @@ TextMiningApp
 *.bin
 perf.data*
 *.svg
-
+massif.out.*

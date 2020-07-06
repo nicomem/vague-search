@@ -1,5 +1,6 @@
 use crate::error::*;
 use crate::utils::read_lines;
+use smartstring::alias::String;
 use snafu::*;
 use std::{cmp::Ordering, num::NonZeroU32, path::Path};
 use vague_search_core::TrieNodeDrainer;
@@ -75,7 +76,7 @@ impl PatriciaNode {
             // Create the word node and set the children as both nodes,
             // sorted by their letters
             let new_word_node = PatriciaNode {
-                letters: second_word.to_string(),
+                letters: String::from(second_word),
                 children: Vec::new(),
                 freq: Some(frequency),
             };
@@ -92,7 +93,7 @@ impl PatriciaNode {
 
     fn create_and_insert_at(&mut self, index: usize, word: &str, frequency: NonZeroU32) {
         let child = PatriciaNode {
-            letters: word.to_string(),
+            letters: String::from(word),
             children: Vec::new(),
             freq: Some(frequency),
         };
@@ -172,7 +173,7 @@ impl PatriciaNode {
         }
 
         // Both words are not equal, consider as deleted node
-        if child.letters != word {
+        if &child.letters != word {
             return true;
         }
 
@@ -275,8 +276,8 @@ impl PatriciaNode {
 }
 
 impl TrieNodeDrainer for PatriciaNode {
-    fn drain_characters(&mut self) -> String {
-        std::mem::replace(&mut self.letters, String::new())
+    fn drain_characters(&mut self) -> std::string::String {
+        std::mem::replace(&mut self.letters, String::new()).into()
     }
 
     fn frequency(&self) -> Option<NonZeroU32> {

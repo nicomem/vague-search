@@ -212,6 +212,13 @@ impl DictionaryFile<'_> {
             file.write_all(bytes).context(FileWrite { path })?;
         }
 
+        eprintln!(
+            "File is composed of:\n- nodes: {} bytes\n- chars: {} bytes\n- ranges: {} bytes",
+            self.trie.nodes().as_bytes().len(),
+            self.trie.chars().as_bytes().len(),
+            self.trie.ranges().as_bytes().len()
+        );
+
         Ok(())
     }
 }
