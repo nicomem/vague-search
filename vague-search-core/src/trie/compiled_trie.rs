@@ -46,23 +46,42 @@ impl CompiledTrie<'_> {
     }
 
     /// Return the root node.
+    /// Only return None when the nodes array is empty.
     pub fn root(&self) -> Option<&CompiledTrieNode> {
         self.nodes.get(0)
     }
 
-    /// Get a node from the trie.
-    pub fn get_node(&self, index: IndexNodeNonZero) -> Option<&CompiledTrieNode> {
-        self.nodes.get(usize::from(index))
+    /// Get a node and its siblings from the trie.
+    pub fn get_siblings(&self, index: IndexNodeNonZero) -> &[CompiledTrieNode] {
+        let start_index = usize::from(index);
+        debug_assert!(start_index < self.nodes.len());
+
+        // SAFETY: both IndexNodeNonZero are valid because they cannot be created by the user.
+        unsafe {
+            let first_node = self.nodes.get_unchecked(start_index);
+            let end_index = start_index + first_node.nb_siblings() as usize;
+
+            debug_assert!(end_index < self.nodes.len());
+            self.nodes.get_unchecked(start_index..end_index)
+        }
     }
 
     /// Get a range of characters of a [PatriciaNode](crate::PatriciaNode).
-    pub fn get_chars(&self, range: Range<IndexChar>) -> Option<&CharsSlice> {
-        self.chars.get(range.start.into()..range.end.into())
+    pub fn get_chars(&self, range: Range<IndexChar>) -> &CharsSlice {
+        // SAFETY: Both IndexChar are valid because they cannot be created by the user.
+        unsafe {
+            self.chars
+                .get_unchecked(usize::from(range.start)..usize::from(range.end))
+        }
     }
 
     /// Get a range of nodes corresponding to a [RangeNode](crate::RangeNode).
-    pub fn get_range(&self, range: Range<IndexRange>) -> Option<&RangeSlice> {
-        self.ranges.get(range.start.into()..range.end.into())
+    pub fn get_range(&self, range: Range<IndexRange>) -> &RangeSlice {
+        // SAFETY: Both IndexRange are valid because they cannot be created by the user.
+        unsafe {
+            self.ranges
+                .get_unchecked(usize::from(range.start)..usize::from(range.end))
+        }
     }
 }
 

@@ -3,9 +3,10 @@
 /.vscode
 
 # Files:
-TextMiningCompiler
-TextMiningApp
 *.bin
-perf.data*
 *.svg
+TextMiningApp
+TextMiningCompiler
 massif.out.*
+perf.data*
+words.txt

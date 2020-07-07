@@ -1,8 +1,8 @@
 //! Define index wrappers that can only be used to access their corresponding array.
 //! If instead an index was returned as an integer, it could be used with any of
 //! the array in the trie.
-//! Here, we only implement indexing for the corresponding type of slice and the
-//! inner index integer is kept private, to keep everything safe.
+//! Also they can only be set inside this crate, so that the functions here
+//! can be sure that these indices are valid (for the trie that provided them).
 
 use std::{num::NonZeroU32, ops::Deref};
 
@@ -11,6 +11,7 @@ macro_rules! index_wrappers {
     ($( $index:ident ),*) => {
         $(
             /// Represent a valid index in the [CompiledTrie](crate::CompiledTrie) corresponding array.
+            /// **UB Warning:** This index must not be used on another trie than the one that provided it.
             #[derive(Debug, Copy, Clone, Eq, PartialEq)]
             pub struct $index {
                 index: u32,
