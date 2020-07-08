@@ -17,6 +17,7 @@ use std::path::PathBuf;
 use vague_search_core::DictionaryFile;
 
 mod error;
+mod levenshtein;
 
 /// Represents the expected parsed program arguments.
 #[derive(Debug)]
