@@ -15,6 +15,7 @@ use error::*;
 use snafu::*;
 use std::path::PathBuf;
 use vague_search_core::DictionaryFile;
+use levenshtein::distance_zero;
 
 mod error;
 mod levenshtein;
@@ -53,7 +54,9 @@ fn main() -> Result<()> {
     })?;
 
     // TODO: Do the app
-    dbg!(dict_file.trie.root().unwrap());
+    dbg!(dict_file.trie.get_root_siblings().unwrap());
+
+    dbg!(distance_zero(&dict_file.trie, "ala"));
 
     Ok(())
 }

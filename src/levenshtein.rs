@@ -1,5 +1,5 @@
-use vague_search_core::{CompiledTrie, CompiledTrieNode};
 use std::num::NonZeroU32;
+use vague_search_core::{CompiledTrie, CompiledTrieNode};
 
 fn compare_keys(
     trie_node: &CompiledTrieNode,
@@ -7,22 +7,18 @@ fn compare_keys(
     trie: &CompiledTrie,
 ) -> std::cmp::Ordering {
     match trie_node {
-        CompiledTrieNode::PatriciaNode(a) => trie
-            .get_chars(&a.char_range)
+        CompiledTrieNode::PatriciaNode(node) => trie
+            .get_chars(&node.char_range)
             .chars()
             .next()
             .unwrap()
             .cmp(&character),
-        CompiledTrieNode::NaiveNode(b) => b.character.cmp(&character),
-        CompiledTrieNode::RangeNode(c) => {
-            // FIXME
-            let ranges = trie.get_range(&c.range);
-            dbg!(ranges);
-            dbg!(c.first_char);
-            dbg!(character);
-            if c.first_char > character {
+        CompiledTrieNode::NaiveNode(node) => node.character.cmp(&character),
+        CompiledTrieNode::RangeNode(node) => {
+            let ranges = trie.get_range(&node.range);
+            if node.first_char > character {
                 std::cmp::Ordering::Greater
-            } else if c.first_char as usize + ranges.len() < character as usize {
+            } else if node.first_char as usize + ranges.len() < character as usize {
                 std::cmp::Ordering::Less
             } else {
                 std::cmp::Ordering::Equal
@@ -31,57 +27,67 @@ fn compare_keys(
     }
 }
 
-pub fn distance_zero(trie: &CompiledTrie, word: String) -> Option<NonZeroU32> {
-    let mut word_cpy = word.clone();
+pub fn distance_zero(trie: &CompiledTrie, word: &str) -> Option<NonZeroU32> {
+    let mut word_cpy = word;
     let mut children = trie.get_root_siblings()?;
-    dbg!(trie);
+
     loop {
         let first_char: char = word_cpy.chars().next().unwrap();
-        dbg!(first_char);
-        dbg!(children);
 
-        let index_child =
-            children.binary_search_by(|node| compare_keys(node, first_char, trie));
+        let index_child = children
+            .binary_search_by(|node| compare_keys(node, first_char, trie))
+            .ok()?;
 
-        let index = match index_child {
-            Ok(u) => {u}
-            Err(_) => return None
-        };
-
-        let child = children.get(index)?;
+        let child = unsafe { children.get_unchecked(index_child) };
 
         children = match child {
             CompiledTrieNode::PatriciaNode(node) => {
                 let chars = trie.get_chars(&node.char_range);
                 let lenchar = chars.len();
-                if lenchar > word_cpy.len() || !word_cpy.starts_with(chars) {break; }
-                if word_cpy.len() == lenchar { return node.word_freq }
+                if lenchar > word_cpy.len() || !word_cpy.starts_with(chars) {
+                    return None;
+                }
+                if word_cpy.len() == lenchar {
+                    return node.word_freq;
+                }
                 // If no more childs then no more iterations
-                if node.index_first_child.is_none() { break; }
-                // Split word for next iteration
-                word_cpy = word_cpy.split_off(lenchar);
-                // Get the siblings for the next iteration
-                trie.get_siblings(node.index_first_child.unwrap())
+                if let Some(index) = node.index_first_child {
+                    // Split word for next iteration
+                    word_cpy = word_cpy.split_at(lenchar).1;
+                    // Get the siblings for the next iteration
+                    trie.get_siblings(index)
+                } else {
+                    return None;
+                }
             }
             CompiledTrieNode::NaiveNode(node) => {
-                if word_cpy.len() == 1 { return node.word_freq;}
-                else if node.index_first_child.is_none() { break; }
-                word_cpy = word_cpy.split_off(1);
-                trie.get_siblings(node.index_first_child.unwrap())
+                if word_cpy.len() == node.character.len_utf8() {
+                    return node.word_freq;
+                }
+                if let Some(index) = node.index_first_child {
+                    word_cpy = word_cpy.split_at(node.character.len_utf8()).1;
+                    trie.get_siblings(index)
+                } else {
+                    return None;
+                }
             }
             CompiledTrieNode::RangeNode(node) => {
-                let range = trie.get_range(&node.range).get(first_char as usize - node.first_char as usize)?;
-                if word_cpy.len() == 1 { return range.word_freq;}
-                else if range.index_first_child.is_none() { break; }
-
-                word_cpy = word_cpy.split_off(1);
-                trie.get_siblings(range.index_first_child.unwrap())
-
+                let range = trie
+                    .get_range(&node.range)
+                    .get(first_char as usize - node.first_char as usize)?;
+                if word_cpy.len() == first_char.len_utf8() {
+                    return range.word_freq;
+                }
+                // Get next child index
+                if let Some(index) = range.index_first_child {
+                    word_cpy = word_cpy.split_at(first_char.len_utf8()).1;
+                    trie.get_siblings(index)
+                } else {
+                    return None;
+                }
             }
         }
-        
     }
-    None
 }
 
 #[cfg(test)]
@@ -143,7 +149,7 @@ mod test {
     }
 
     #[test]
-    fn simple_search() {
+    fn mixed_search() {
         let root = create_simple(
             '-',
             0,
@@ -168,17 +174,16 @@ mod test {
         );
         let compiled = CompiledTrie::from(root);
 
-        let search_cata = distance_zero(&compiled, String::from("cata"));
+        let search_cata = distance_zero(&compiled, "cata");
         assert!(search_cata.is_some());
         assert_eq!(search_cata.unwrap(), NonZeroU32::new(1).unwrap());
 
-        let search_da= distance_zero(&compiled, String::from("da"));
+        let search_da = distance_zero(&compiled, "da");
         assert!(search_da.is_some());
         assert_eq!(search_da.unwrap(), NonZeroU32::new(9).unwrap());
 
-        let search_dfade= distance_zero(&compiled, String::from("dfade"));
+        let search_dfade = distance_zero(&compiled, "fade");
         assert!(search_dfade.is_some());
         assert_eq!(search_dfade.unwrap(), NonZeroU32::new(10).unwrap());
-
     }
 }

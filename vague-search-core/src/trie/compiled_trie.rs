@@ -45,12 +45,6 @@ impl CompiledTrie<'_> {
         &self.ranges
     }
 
-    /// Return the root node.
-    /// Only return None when the nodes array is empty.
-    pub fn root(&self) -> Option<&CompiledTrieNode> {
-        self.nodes.get(0)
-    }
-
     /// Return the root node and its siblings.
     /// Only return None when the nodes array is empty.
     pub fn get_root_siblings(&self) -> Option<&[CompiledTrieNode]> {
@@ -69,7 +63,7 @@ impl CompiledTrie<'_> {
         // Add +1 to count current node in the range
         let end_index = index + first_node.nb_siblings() as usize + 1;
 
-        debug_assert!(end_index < self.nodes.len());
+        debug_assert!(end_index <= self.nodes.len());
         self.nodes.get_unchecked(index..end_index)
     }
 
