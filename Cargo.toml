@@ -7,11 +7,6 @@ edition = "2018"
 [workspace]
 members = [".", "vague-search-core", "vague-search-index"]
 
-# # Uncomment this to please cargo-flamegraph
-# [[bin]]
-# name = "vague-search-index"
-# path = "vague-search-index/src/main.rs"
-
 [profile.release]
 lto = "fat"
 panic = "abort"
