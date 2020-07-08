@@ -66,7 +66,8 @@ impl CompiledTrie<'_> {
         debug_assert!(index < self.nodes.len());
 
         let first_node = self.nodes.get_unchecked(index);
-        let end_index = index + first_node.nb_siblings() as usize;
+        // Add +1 to count current node in the range
+        let end_index = index + first_node.nb_siblings() as usize + 1;
 
         debug_assert!(end_index < self.nodes.len());
         self.nodes.get_unchecked(index..end_index)

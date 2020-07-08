@@ -17,10 +17,13 @@ fn compare_keys(
         CompiledTrieNode::RangeNode(c) => {
             // FIXME
             let ranges = trie.get_range(&c.range);
+            dbg!(ranges);
+            dbg!(c.first_char);
+            dbg!(character);
             if c.first_char > character {
-                std::cmp::Ordering::Less
-            } else if c.first_char as usize + ranges.len() < character as usize {
                 std::cmp::Ordering::Greater
+            } else if c.first_char as usize + ranges.len() < character as usize {
+                std::cmp::Ordering::Less
             } else {
                 std::cmp::Ordering::Equal
             }
@@ -63,7 +66,7 @@ pub fn distance_zero(trie: &CompiledTrie, word: String) -> Option<NonZeroU32> {
             CompiledTrieNode::NaiveNode(node) => {
                 if word_cpy.len() == 1 { return node.word_freq;}
                 else if node.index_first_child.is_none() { break; }
-                word_cpy = word_cpy.split_off(0);
+                word_cpy = word_cpy.split_off(1);
                 trie.get_siblings(node.index_first_child.unwrap())
             }
             CompiledTrieNode::RangeNode(node) => {
@@ -71,7 +74,7 @@ pub fn distance_zero(trie: &CompiledTrie, word: String) -> Option<NonZeroU32> {
                 if word_cpy.len() == 1 { return range.word_freq;}
                 else if range.index_first_child.is_none() { break; }
 
-                word_cpy = word_cpy.split_off(0);
+                word_cpy = word_cpy.split_off(1);
                 trie.get_siblings(range.index_first_child.unwrap())
 
             }
