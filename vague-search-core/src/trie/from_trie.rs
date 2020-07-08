@@ -111,11 +111,11 @@ fn add_range<N: TrieNodeDrainer>(
 
 /// Check if the current character should be added to the current range.
 fn should_add_to_range(range: &[char], cur: char) -> bool {
-    // Because a RangeElement takes 4x less memory than a CompiledTrieNode,
-    // we can allow 4 empty cells between 2 elements without taking more memory.
+    // Because a RangeElement takes less memory than a CompiledTrieNode,
+    // we can allow empty cells between 2 elements without taking more memory.
     // Moreover, since a range is faster than multiple nodes (indexing vs searching)
     // it is prefered in case they both take the same amount of memory.
-    const MAX_DIST_IN_RANGE: i32 = 5;
+    const MAX_DIST_IN_RANGE: i32 = 3;
 
     // Check the number of empty cells will be placed between the last character
     // in the range and the current if we add it.
