@@ -12,10 +12,10 @@
 //! documentation about types and functions shared by the binaries.
 
 use error::*;
+use levenshtein::distance_zero;
 use snafu::*;
 use std::path::PathBuf;
 use vague_search_core::DictionaryFile;
-use levenshtein::distance_zero;
 
 mod error;
 mod levenshtein;
