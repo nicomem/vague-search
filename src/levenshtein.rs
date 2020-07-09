@@ -27,11 +27,15 @@ fn compare_keys(
     }
 }
 
-pub fn distance_zero(trie: &CompiledTrie, word: &str, index: Option<IndexNodeNonZero>) -> Option<NonZeroU32> {
+pub fn distance_zero(
+    trie: &CompiledTrie,
+    word: &str,
+    index: Option<IndexNodeNonZero>,
+) -> Option<NonZeroU32> {
     let mut word_cpy = word;
     let mut children = match index {
-        None => { trie.get_root_siblings()? }
-        Some(i) => { trie.get_siblings(i) }
+        None => trie.get_root_siblings()?,
+        Some(i) => trie.get_siblings(i),
     };
 
     loop {

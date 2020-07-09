@@ -56,7 +56,7 @@ fn main() -> Result<()> {
     // TODO: Do the app
     dbg!(dict_file.trie.get_root_siblings().unwrap());
 
-    dbg!(distance_zero(&dict_file.trie, "ala"));
+    dbg!(distance_zero(&dict_file.trie, "ala", None));
 
     Ok(())
 }
