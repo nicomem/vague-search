@@ -12,11 +12,13 @@
 //! documentation about types and functions shared by the binaries.
 
 use error::*;
+use levenshtein::distance_zero;
 use snafu::*;
 use std::path::PathBuf;
 use vague_search_core::DictionaryFile;
 
 mod error;
+mod levenshtein;
 
 /// Represents the expected parsed program arguments.
 #[derive(Debug)]
@@ -52,7 +54,9 @@ fn main() -> Result<()> {
     })?;
 
     // TODO: Do the app
-    dbg!(dict_file.trie.root().unwrap());
+    dbg!(dict_file.trie.get_root_siblings().unwrap());
+
+    dbg!(distance_zero(&dict_file.trie, "ala", None));
 
     Ok(())
 }

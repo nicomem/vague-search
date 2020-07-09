@@ -45,30 +45,37 @@ impl CompiledTrie<'_> {
         &self.ranges
     }
 
-    /// Return the root node.
+    /// Return the root node and its siblings.
     /// Only return None when the nodes array is empty.
-    pub fn root(&self) -> Option<&CompiledTrieNode> {
-        self.nodes.get(0)
+    pub fn get_root_siblings(&self) -> Option<&[CompiledTrieNode]> {
+        if self.nodes().is_empty() {
+            None
+        } else {
+            unsafe { Some(self.get_siblings_unchecked(0)) }
+        }
+    }
+
+    /// Get a node and its siblings from the trie. Unsafe version
+    unsafe fn get_siblings_unchecked(&self, index: usize) -> &[CompiledTrieNode] {
+        debug_assert!(index < self.nodes.len());
+
+        let first_node = self.nodes.get_unchecked(index);
+        // Add +1 to count current node in the range
+        let end_index = index + first_node.nb_siblings() as usize + 1;
+
+        debug_assert!(end_index <= self.nodes.len());
+        self.nodes.get_unchecked(index..end_index)
     }
 
     /// Get a node and its siblings from the trie.
     pub fn get_siblings(&self, index: IndexNodeNonZero) -> &[CompiledTrieNode] {
-        let start_index = usize::from(index);
-        debug_assert!(start_index < self.nodes.len());
-
-        // SAFETY: both IndexNodeNonZero are valid because they cannot be created by the user.
-        unsafe {
-            let first_node = self.nodes.get_unchecked(start_index);
-            let end_index = start_index + first_node.nb_siblings() as usize;
-
-            debug_assert!(end_index < self.nodes.len());
-            self.nodes.get_unchecked(start_index..end_index)
-        }
+        // SAFETY: IndexNodeNonZero is valid because it cannot be created by the user.
+        unsafe { self.get_siblings_unchecked(usize::from(index)) }
     }
 
     /// Get a range of characters of a [PatriciaNode](crate::PatriciaNode).
-    pub fn get_chars(&self, range: Range<IndexChar>) -> &CharsSlice {
-        // SAFETY: Both IndexChar are valid because they cannot be created by the user.
+    pub fn get_chars(&self, range: &Range<IndexChar>) -> &CharsSlice {
+        // SAFETY: IndexChar is valid because it cannot be created by the user.
         unsafe {
             self.chars
                 .get_unchecked(usize::from(range.start)..usize::from(range.end))
@@ -76,8 +83,8 @@ impl CompiledTrie<'_> {
     }
 
     /// Get a range of nodes corresponding to a [RangeNode](crate::RangeNode).
-    pub fn get_range(&self, range: Range<IndexRange>) -> &RangeSlice {
-        // SAFETY: Both IndexRange are valid because they cannot be created by the user.
+    pub fn get_range(&self, range: &Range<IndexRange>) -> &RangeSlice {
+        // SAFETY: IndexRange is valid because it cannot be created by the user.
         unsafe {
             self.ranges
                 .get_unchecked(usize::from(range.start)..usize::from(range.end))

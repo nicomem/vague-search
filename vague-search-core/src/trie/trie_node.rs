@@ -48,7 +48,7 @@ pub struct RangeNode {
     /// The first character represented by this node.
     pub first_char: char,
 
-    /// The index of the range in the eponymic array.
+    /// The index of the range in the eponymic(aka RangeSlice in compiled_trie) array.
     pub range: Range<IndexRange>,
 }
 
