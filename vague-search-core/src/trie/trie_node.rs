@@ -1,7 +1,7 @@
 use super::index::*;
 use std::num::NonZeroU32;
 
-use std::fmt::Debug;
+use std::{fmt::Debug, ops::Range};
 
 /// A [CompiledTrie](crate::CompiledTrie) node following a naive trie structure.
 ///
@@ -218,9 +218,13 @@ impl CompiledTrieNode {
     /// Undefined if not a patricia node.
     ///
     /// Return the length of the stored string.
-    pub unsafe fn patricia_str_len(&self) -> u32 {
+    pub unsafe fn patricia_range(&self) -> Range<IndexChar> {
         debug_assert!(matches!(self.node_value(), NodeValue::Patricia(_)));
-        self.get_masked_flags(Self::MASK_PAT_STR_LENGTH)
+        let pat_str_len = self.get_masked_flags(Self::MASK_PAT_STR_LENGTH);
+
+        let start_index: IndexChar = self.node_union.patricia.start_index;
+        let end_index = IndexChar::new(*start_index + pat_str_len);
+        start_index..end_index
     }
 
     /// Return the number of siblings of the node.
@@ -231,25 +235,19 @@ impl CompiledTrieNode {
 
 impl Debug for CompiledTrieNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.node_value() {
-            NodeValue::Naive(n) => f
-                .debug_struct("CompiledTrieNode")
-                .field("nb_siblings_with_flags", &self.nb_siblings_with_flags)
-                .field("node_union(NaiveNode)", n)
-                .finish(),
+        let (node, pat_range): (Box<dyn Debug>, Option<Range<IndexChar>>) = match self.node_value()
+        {
+            NodeValue::Naive(n) => (Box::new(n), None),
+            // SAFETY: Safe because in a patricia node
+            NodeValue::Patricia(n) => (Box::new(n), Some(unsafe { self.patricia_range() })),
+            NodeValue::Range(n) => (Box::new(n), None),
+        };
 
-            NodeValue::Patricia(n) => f
-                .debug_struct("CompiledTrieNode")
-                .field("nb_siblings_with_flags", &self.nb_siblings_with_flags)
-                .field("node_union(PatriciaNode)", n)
-                .finish(),
-
-            NodeValue::Range(n) => f
-                .debug_struct("CompiledTrieNode")
-                .field("nb_siblings_with_flags", &self.nb_siblings_with_flags)
-                .field("node_union(RangeNode)", n)
-                .finish(),
-        }
+        f.debug_struct("CompiledTrieNode")
+            .field("nb_siblings", &self.nb_siblings())
+            .field("patricia_range", &pat_range)
+            .field("node_union", &node)
+            .finish()
     }
 }
 
@@ -320,19 +318,25 @@ mod test {
             0,
         );
         assert_eq!(patricia.nb_siblings(), 0);
-        assert_eq!(unsafe { patricia.patricia_str_len() }, 0);
+        assert_eq!(
+            unsafe { patricia.patricia_range() },
+            IndexChar::new(0)..IndexChar::new(0)
+        );
 
         let patricia = CompiledTrieNode::new_patricia(
             PatriciaNode {
                 index_first_child: NonZeroU32::new(995).map(IndexNodeNonZero::new),
                 word_freq: NonZeroU32::new(875347),
-                start_index: IndexChar::new(0),
+                start_index: IndexChar::new(40),
             },
             3,
             3064,
         );
         assert_eq!(patricia.nb_siblings(), 3);
-        assert_eq!(unsafe { patricia.patricia_str_len() }, 3064);
+        assert_eq!(
+            unsafe { patricia.patricia_range() },
+            IndexChar::new(40)..IndexChar::new(3104)
+        );
 
         let patricia = CompiledTrieNode::new_patricia(
             PatriciaNode {
@@ -344,6 +348,9 @@ mod test {
             4095,
         );
         assert_eq!(patricia.nb_siblings(), 262143);
-        assert_eq!(unsafe { patricia.patricia_str_len() }, 4095);
+        assert_eq!(
+            unsafe { patricia.patricia_range() },
+            IndexChar::new(0)..IndexChar::new(4095)
+        );
     }
 }
