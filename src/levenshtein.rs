@@ -1,5 +1,5 @@
 use std::num::NonZeroU32;
-use vague_search_core::{CompiledTrie, CompiledTrieNode};
+use vague_search_core::{CompiledTrie, CompiledTrieNode, IndexNodeNonZero};
 
 fn compare_keys(
     trie_node: &CompiledTrieNode,
@@ -27,9 +27,12 @@ fn compare_keys(
     }
 }
 
-pub fn distance_zero(trie: &CompiledTrie, word: &str) -> Option<NonZeroU32> {
+pub fn distance_zero(trie: &CompiledTrie, word: &str, index: Option<IndexNodeNonZero>) -> Option<NonZeroU32> {
     let mut word_cpy = word;
-    let mut children = trie.get_root_siblings()?;
+    let mut children = match index {
+        None => { trie.get_root_siblings()? }
+        Some(i) => { trie.get_siblings(i) }
+    };
 
     loop {
         let first_char: char = word_cpy.chars().next().unwrap();
@@ -174,15 +177,15 @@ mod test {
         );
         let compiled = CompiledTrie::from(root);
 
-        let search_cata = distance_zero(&compiled, "cata");
+        let search_cata = distance_zero(&compiled, "cata", None);
         assert!(search_cata.is_some());
         assert_eq!(search_cata.unwrap(), NonZeroU32::new(1).unwrap());
 
-        let search_da = distance_zero(&compiled, "da");
+        let search_da = distance_zero(&compiled, "da", None);
         assert!(search_da.is_some());
         assert_eq!(search_da.unwrap(), NonZeroU32::new(9).unwrap());
 
-        let search_dfade = distance_zero(&compiled, "fade");
+        let search_dfade = distance_zero(&compiled, "fade", None);
         assert!(search_dfade.is_some());
         assert_eq!(search_dfade.unwrap(), NonZeroU32::new(10).unwrap());
     }
