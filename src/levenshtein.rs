@@ -29,38 +29,37 @@ fn compare_keys(
 
 pub fn distance_zero(
     trie: &CompiledTrie,
-    word: &str,
+    mut word: &str,
     index: Option<IndexNodeNonZero>,
 ) -> Option<NonZeroU32> {
-    let mut word_cpy = word;
     let mut children = match index {
         None => trie.get_root_siblings()?,
         Some(i) => trie.get_siblings(i),
     };
 
     loop {
-        let first_char: char = word_cpy.chars().next().unwrap();
+        debug_assert_ne!(word.len(), 0);
+        let first_char: char = word.chars().next()?;
 
         let index_child = children
             .binary_search_by(|node| compare_keys(node, first_char, trie))
             .ok()?;
 
         let child = unsafe { children.get_unchecked(index_child) };
-
         children = match child {
             CompiledTrieNode::PatriciaNode(node) => {
                 let chars = trie.get_chars(&node.char_range);
                 let lenchar = chars.len();
-                if lenchar > word_cpy.len() || !word_cpy.starts_with(chars) {
+                if lenchar > word.len() || !word.starts_with(chars) {
                     return None;
                 }
-                if word_cpy.len() == lenchar {
+                if word.len() == lenchar {
                     return node.word_freq;
                 }
                 // If no more childs then no more iterations
                 if let Some(index) = node.index_first_child {
                     // Split word for next iteration
-                    word_cpy = word_cpy.split_at(lenchar).1;
+                    word = word.split_at(lenchar).1;
                     // Get the siblings for the next iteration
                     trie.get_siblings(index)
                 } else {
@@ -68,11 +67,11 @@ pub fn distance_zero(
                 }
             }
             CompiledTrieNode::NaiveNode(node) => {
-                if word_cpy.len() == node.character.len_utf8() {
+                if word.len() == node.character.len_utf8() {
                     return node.word_freq;
                 }
                 if let Some(index) = node.index_first_child {
-                    word_cpy = word_cpy.split_at(node.character.len_utf8()).1;
+                    word = word.split_at(node.character.len_utf8()).1;
                     trie.get_siblings(index)
                 } else {
                     return None;
@@ -82,12 +81,12 @@ pub fn distance_zero(
                 let range = trie
                     .get_range(&node.range)
                     .get(first_char as usize - node.first_char as usize)?;
-                if word_cpy.len() == first_char.len_utf8() {
+                if word.len() == first_char.len_utf8() {
                     return range.word_freq;
                 }
                 // Get next child index
                 if let Some(index) = range.index_first_child {
-                    word_cpy = word_cpy.split_at(first_char.len_utf8()).1;
+                    word = word.split_at(first_char.len_utf8()).1;
                     trie.get_siblings(index)
                 } else {
                     return None;
@@ -100,7 +99,6 @@ pub fn distance_zero(
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::ops::Range;
     use vague_search_core::TrieNodeDrainer;
 
     #[derive(Debug, Default, Clone, Eq, PartialEq)]
@@ -140,27 +138,14 @@ mod test {
         }
     }
 
-    fn create_range(range: Range<char>, step: usize) -> (Vec<char>, Vec<NodeDrainer>) {
-        let chars: Vec<char> = ((range.start as u32)..(range.end as u32))
-            .step_by(step)
-            .flat_map(std::char::from_u32)
-            .collect();
-
-        let nodes = chars
-            .iter()
-            .map(|&c| c)
-            .map(|c| create_simple(c, 0, vec![]))
-            .collect();
-
-        (chars, nodes)
-    }
-
     #[test]
     fn mixed_search() {
         let root = create_simple(
             '-',
             0,
             vec![
+                create_simple('a', 0, vec![create_patricia("la", 20, vec![])]),
+                create_simple('b', 1, vec![]),
                 create_patricia(
                     "cata",
                     1,
@@ -192,5 +177,9 @@ mod test {
         let search_dfade = distance_zero(&compiled, "fade", None);
         assert!(search_dfade.is_some());
         assert_eq!(search_dfade.unwrap(), NonZeroU32::new(10).unwrap());
+
+        let search_ala = distance_zero(&compiled, "ala", None);
+        assert!(search_ala.is_some());
+        assert_eq!(search_ala.unwrap(), NonZeroU32::new(20).unwrap());
     }
 }
