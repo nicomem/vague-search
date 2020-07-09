@@ -163,6 +163,20 @@ impl PatriciaNode {
         }
     }
 
+    /// Compress the trie to use less memory
+    pub(crate) fn compress(&mut self) {
+        // Reduce capacity of string to minimal
+        self.letters.shrink_to_fit();
+
+        // Reduce capacity of vector to minimal
+        self.children.shrink_to_fit();
+
+        // Call recursively
+        for child in &mut self.children {
+            child.compress();
+        }
+    }
+
     #[cfg(test)]
     fn delete_node(&mut self, word: &str, index: usize) -> bool {
         let child = self.children.get_mut(index).unwrap();

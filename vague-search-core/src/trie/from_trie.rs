@@ -398,9 +398,9 @@ fn fill_from_trie<N: TrieNodeDrainer>(
 
 impl<N: TrieNodeDrainer> From<N> for CompiledTrie<'_> {
     fn from(root: N) -> Self {
-        const NODES_INIT_CAP: usize = 1024 * 1024;
+        const NODES_INIT_CAP: usize = 1024;
         const CHARS_INIT_CAP: usize = 1024;
-        const RANGES_INIT_CAP: usize = 512 * 1024;
+        const RANGES_INIT_CAP: usize = 1024;
 
         let mut nodes = Vec::with_capacity(NODES_INIT_CAP);
         let mut big_string = String::with_capacity(CHARS_INIT_CAP);

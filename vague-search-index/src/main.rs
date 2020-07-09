@@ -49,9 +49,10 @@ fn main() -> Result<()> {
     let args = parse_args()?;
 
     eprintln!("Creating Patricia Trie from the file...");
-    let patricia_trie = PatriciaNode::create_from_file(&args.words_path)?;
+    let mut patricia_trie = PatriciaNode::create_from_file(&args.words_path)?;
 
     eprintln!("Patricia Trie created, compressing...");
+    patricia_trie.compress();
     let compiled: CompiledTrie = patricia_trie.into();
     let dict_file: DictionaryFile = compiled.into();
 
