@@ -12,13 +12,14 @@
 //! documentation about types and functions shared by the binaries.
 
 use error::*;
-use levenshtein::distance_zero;
+use search_exact::distance_zero;
 use snafu::*;
 use std::path::PathBuf;
 use vague_search_core::DictionaryFile;
 
 mod error;
-mod levenshtein;
+mod search_approx;
+mod search_exact;
 
 /// Represents the expected parsed program arguments.
 #[derive(Debug)]
