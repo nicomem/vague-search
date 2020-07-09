@@ -4,6 +4,7 @@ use std::{
     num::{NonZeroU32, NonZeroUsize},
     ops::Range,
 };
+use trie::trie_node::NodeValueMut;
 use utils::char_dist;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -28,20 +29,28 @@ const fn dummy_index() -> Option<IndexNodeNonZero> {
 /// and instead return the already present characters range of index.
 fn add_chars(big_string: &mut String, chars: &str) -> Range<IndexChar> {
     const SEARCH_LIMIT: usize = 2048;
-    let mut byte_windows = big_string
-        .as_bytes()
-        .windows(chars.len())
-        .rev()
-        .take(SEARCH_LIMIT)
-        .rev();
+
+    let nb_bytes_searched = SEARCH_LIMIT.min(big_string.len());
+    let search_window_index = big_string.len() - nb_bytes_searched;
+
+    let search_bytes = &big_string.as_bytes()[search_window_index..];
+    let mut byte_windows = search_bytes.windows(chars.len()).take(SEARCH_LIMIT);
 
     let found = byte_windows.position(|win| win == chars.as_bytes());
-    let pos = found.unwrap_or_else(|| {
+    let pos = if let Some(search_window_pos) = found {
+        // The found index is relative to the search window
+        // so the last SEARCH_LIMIT bytes.
+
+        // To find the position of the found substring, we need to find the index
+        // of the search window (= SEARCH_LIMIT bytes before the end)
+        // and then add the position of the found substring.
+        search_window_index + search_window_pos
+    } else {
         // Save the start position where chars will be added
         let start_pos = big_string.len();
         big_string.push_str(chars);
         start_pos
-    });
+    };
 
     let start = IndexChar::new(pos as u32);
     let end = IndexChar::new((pos + chars.len()) as u32);
@@ -110,11 +119,11 @@ fn add_range<N: TrieNodeDrainer>(
 
 /// Check if the current character should be added to the current range.
 fn should_add_to_range(range: &[char], cur: char) -> bool {
-    // Because a RangeElement takes 4x less memory than a CompiledTrieNode,
-    // we can allow 4 empty cells between 2 elements without taking more memory.
+    // Because a RangeElement takes less memory than a CompiledTrieNode,
+    // we can allow empty cells between 2 elements without taking more memory.
     // Moreover, since a range is faster than multiple nodes (indexing vs searching)
     // it is prefered in case they both take the same amount of memory.
-    const MAX_DIST_IN_RANGE: i32 = 5;
+    const MAX_DIST_IN_RANGE: i32 = 3;
 
     // Check the number of empty cells will be placed between the last character
     // in the range and the current if we add it.
@@ -228,28 +237,38 @@ fn create_partial_node<N: TrieNodeDrainer>(
     trie_ranges: &mut Vec<RangeElement>,
 ) -> CompiledTrieNode {
     match heuristic {
-        TrieNode::Simple(node, character) => CompiledTrieNode::NaiveNode(NaiveNode {
-            nb_siblings,
-            index_first_child: None,
-            word_freq: node.frequency(),
-            character,
-        }),
-        TrieNode::Patricia(node, node_chars) => {
-            let char_range = add_chars(trie_chars, &node_chars);
-            CompiledTrieNode::PatriciaNode(PatriciaNode {
-                nb_siblings,
+        TrieNode::Simple(node, character) => CompiledTrieNode::new_naive(
+            NaiveNode {
                 index_first_child: None,
                 word_freq: node.frequency(),
-                char_range,
-            })
+                character,
+            },
+            nb_siblings,
+        ),
+        TrieNode::Patricia(node, node_chars) => {
+            let char_range = add_chars(trie_chars, &node_chars);
+            let str_len = node_chars.len() as u32;
+
+            CompiledTrieNode::new_patricia(
+                PatriciaNode {
+                    index_first_child: None,
+                    word_freq: node.frequency(),
+                    start_index: char_range.start,
+                },
+                nb_siblings,
+                str_len,
+            )
         }
         TrieNode::Range(nodes, range_chars) => {
             let (range, first_char) = add_range(trie_ranges, nodes, &range_chars);
-            CompiledTrieNode::RangeNode(RangeNode {
+            CompiledTrieNode::new_range(
+                RangeNode {
+                    first_char,
+                    start_index: range.start,
+                    end_index: range.end,
+                },
                 nb_siblings,
-                first_char,
-                range,
-            })
+            )
         }
     }
 }
@@ -276,29 +295,29 @@ fn finish_current_partial_node(
     index_first_child: Option<IndexNodeNonZero>,
     (partial_i, range_i): (usize, Option<NonZeroUsize>),
 ) -> (usize, Option<NonZeroUsize>) {
-    match trie_nodes[partial_i] {
-        CompiledTrieNode::PatriciaNode(ref mut n) => {
+    match trie_nodes[partial_i].node_value_mut() {
+        NodeValueMut::Naive(n) => {
             // Fill the partial node and advance to the next
             n.index_first_child = index_first_child;
             (partial_i + 1, None)
         }
-        CompiledTrieNode::NaiveNode(ref mut n) => {
+        NodeValueMut::Patricia(n) => {
             // Fill the partial node and advance to the next
             n.index_first_child = index_first_child;
             (partial_i + 1, None)
         }
-        CompiledTrieNode::RangeNode(ref n) => {
-            let cur_i = range_i.map_or(usize::from(n.range.start), usize::from);
+        NodeValueMut::Range(n) => {
+            let cur_i = range_i.map_or(usize::from(n.start_index), usize::from);
             let next_i = find_next_dummy_range_node(trie_ranges, cur_i);
 
-            debug_assert!(next_i <= usize::from(n.range.end));
+            debug_assert!(next_i <= usize::from(n.end_index));
 
             // Replace the dummy index with the correct one
             trie_ranges[next_i].index_first_child = index_first_child;
 
             // If we just filled the last element, advance to the next partial node
             // else advance in the range
-            if next_i + 1 >= usize::from(n.range.end) {
+            if next_i + 1 >= usize::from(n.end_index) {
                 (partial_i + 1, None)
             } else {
                 (partial_i, NonZeroUsize::new(next_i + 1))
@@ -649,42 +668,54 @@ mod test {
             ],
         );
         let target_nodes = vec![
-            CompiledTrieNode::NaiveNode(NaiveNode {
-                nb_siblings: 2,
-                index_first_child: NonZeroU32::new(3).map(IndexNodeNonZero::new),
-                word_freq: NonZeroU32::new(1),
-                character: 'a',
-            }),
-            CompiledTrieNode::NaiveNode(NaiveNode {
-                nb_siblings: 1,
-                index_first_child: NonZeroU32::new(5).map(IndexNodeNonZero::new),
-                word_freq: None,
-                character: 'h',
-            }),
-            CompiledTrieNode::NaiveNode(NaiveNode {
-                nb_siblings: 0,
-                index_first_child: None,
-                word_freq: NonZeroU32::new(5),
-                character: 'z',
-            }),
-            CompiledTrieNode::NaiveNode(NaiveNode {
-                nb_siblings: 1,
-                index_first_child: None,
-                word_freq: NonZeroU32::new(2),
-                character: 'a',
-            }),
-            CompiledTrieNode::NaiveNode(NaiveNode {
-                nb_siblings: 0,
-                index_first_child: None,
-                word_freq: NonZeroU32::new(1),
-                character: 'h',
-            }),
-            CompiledTrieNode::NaiveNode(NaiveNode {
-                nb_siblings: 0,
-                index_first_child: None,
-                word_freq: NonZeroU32::new(1),
-                character: 'a',
-            }),
+            CompiledTrieNode::new_naive(
+                NaiveNode {
+                    index_first_child: NonZeroU32::new(3).map(IndexNodeNonZero::new),
+                    word_freq: NonZeroU32::new(1),
+                    character: 'a',
+                },
+                2,
+            ),
+            CompiledTrieNode::new_naive(
+                NaiveNode {
+                    index_first_child: NonZeroU32::new(5).map(IndexNodeNonZero::new),
+                    word_freq: None,
+                    character: 'h',
+                },
+                1,
+            ),
+            CompiledTrieNode::new_naive(
+                NaiveNode {
+                    index_first_child: None,
+                    word_freq: NonZeroU32::new(5),
+                    character: 'z',
+                },
+                0,
+            ),
+            CompiledTrieNode::new_naive(
+                NaiveNode {
+                    index_first_child: None,
+                    word_freq: NonZeroU32::new(2),
+                    character: 'a',
+                },
+                1,
+            ),
+            CompiledTrieNode::new_naive(
+                NaiveNode {
+                    index_first_child: None,
+                    word_freq: NonZeroU32::new(1),
+                    character: 'h',
+                },
+                0,
+            ),
+            CompiledTrieNode::new_naive(
+                NaiveNode {
+                    index_first_child: None,
+                    word_freq: NonZeroU32::new(1),
+                    character: 'a',
+                },
+                0,
+            ),
         ];
         let target_chars = "";
         let target_ranges = vec![];
@@ -710,43 +741,61 @@ mod test {
             ],
         );
         let target_nodes = vec![
-            CompiledTrieNode::PatriciaNode(PatriciaNode {
-                nb_siblings: 2,
-                index_first_child: NonZeroU32::new(3).map(IndexNodeNonZero::new),
-                word_freq: NonZeroU32::new(1),
-                char_range: IndexChar::new(0)..IndexChar::new(3),
-            }),
-            CompiledTrieNode::PatriciaNode(PatriciaNode {
-                nb_siblings: 1,
-                index_first_child: NonZeroU32::new(5).map(IndexNodeNonZero::new),
-                word_freq: None,
-                char_range: IndexChar::new(3)..IndexChar::new(7),
-            }),
-            CompiledTrieNode::PatriciaNode(PatriciaNode {
-                nb_siblings: 0,
-                index_first_child: None,
-                word_freq: NonZeroU32::new(5),
-                char_range: IndexChar::new(7)..IndexChar::new(12),
-            }),
-            CompiledTrieNode::PatriciaNode(PatriciaNode {
-                nb_siblings: 1,
-                index_first_child: None,
-                word_freq: NonZeroU32::new(2),
-                char_range: IndexChar::new(12)..IndexChar::new(16),
-            }),
-            CompiledTrieNode::PatriciaNode(PatriciaNode {
-                nb_siblings: 0,
-                index_first_child: None,
-                word_freq: NonZeroU32::new(1),
-                char_range: IndexChar::new(16)..IndexChar::new(18),
-            }),
-            CompiledTrieNode::PatriciaNode(PatriciaNode {
-                nb_siblings: 0,
-                index_first_child: None,
-                word_freq: NonZeroU32::new(1),
-                // characters already present in the array, should reuse it
-                char_range: IndexChar::new(1)..IndexChar::new(3),
-            }),
+            CompiledTrieNode::new_patricia(
+                PatriciaNode {
+                    index_first_child: NonZeroU32::new(3).map(IndexNodeNonZero::new),
+                    word_freq: NonZeroU32::new(1),
+                    start_index: IndexChar::new(0),
+                },
+                2,
+                3,
+            ),
+            CompiledTrieNode::new_patricia(
+                PatriciaNode {
+                    index_first_child: NonZeroU32::new(5).map(IndexNodeNonZero::new),
+                    word_freq: None,
+                    start_index: IndexChar::new(3),
+                },
+                1,
+                4,
+            ),
+            CompiledTrieNode::new_patricia(
+                PatriciaNode {
+                    index_first_child: None,
+                    word_freq: NonZeroU32::new(5),
+                    start_index: IndexChar::new(7),
+                },
+                0,
+                5,
+            ),
+            CompiledTrieNode::new_patricia(
+                PatriciaNode {
+                    index_first_child: None,
+                    word_freq: NonZeroU32::new(2),
+                    start_index: IndexChar::new(12),
+                },
+                1,
+                4,
+            ),
+            CompiledTrieNode::new_patricia(
+                PatriciaNode {
+                    index_first_child: None,
+                    word_freq: NonZeroU32::new(1),
+                    start_index: IndexChar::new(16),
+                },
+                0,
+                2,
+            ),
+            CompiledTrieNode::new_patricia(
+                PatriciaNode {
+                    index_first_child: None,
+                    word_freq: NonZeroU32::new(1),
+                    // characters already present in the array, should reuse it
+                    start_index: IndexChar::new(1),
+                },
+                0,
+                2,
+            ),
         ];
         let target_chars = "abarotasuperbabaca";
         let target_ranges = vec![];
@@ -779,26 +828,38 @@ mod test {
             ],
         );
         let target_nodes = vec![
-            CompiledTrieNode::RangeNode(RangeNode {
-                nb_siblings: 0,
-                first_char: 'a',
-                range: IndexRange::new(0)..IndexRange::new(6),
-            }),
-            CompiledTrieNode::RangeNode(RangeNode {
-                nb_siblings: 0,
-                first_char: 'd',
-                range: IndexRange::new(6)..IndexRange::new(9),
-            }),
-            CompiledTrieNode::RangeNode(RangeNode {
-                nb_siblings: 1,
-                first_char: 'a',
-                range: IndexRange::new(9)..IndexRange::new(12),
-            }),
-            CompiledTrieNode::RangeNode(RangeNode {
-                nb_siblings: 0,
-                first_char: 'r',
-                range: IndexRange::new(12)..IndexRange::new(18),
-            }),
+            CompiledTrieNode::new_range(
+                RangeNode {
+                    first_char: 'a',
+                    start_index: IndexRange::new(0),
+                    end_index: IndexRange::new(6),
+                },
+                0,
+            ),
+            CompiledTrieNode::new_range(
+                RangeNode {
+                    first_char: 'd',
+                    start_index: IndexRange::new(6),
+                    end_index: IndexRange::new(9),
+                },
+                0,
+            ),
+            CompiledTrieNode::new_range(
+                RangeNode {
+                    first_char: 'a',
+                    start_index: IndexRange::new(9),
+                    end_index: IndexRange::new(12),
+                },
+                1,
+            ),
+            CompiledTrieNode::new_range(
+                RangeNode {
+                    first_char: 'r',
+                    start_index: IndexRange::new(12),
+                    end_index: IndexRange::new(18),
+                },
+                0,
+            ),
         ];
         let target_chars = "";
         let target_ranges = vec![
@@ -883,46 +944,65 @@ mod test {
             ],
         );
         let target_nodes = vec![
-            CompiledTrieNode::PatriciaNode(PatriciaNode {
-                nb_siblings: 1,
-                index_first_child: NonZeroU32::new(2).map(IndexNodeNonZero::new),
-                word_freq: NonZeroU32::new(1),
-                char_range: IndexChar::new(0)..IndexChar::new(5),
-            }),
-            CompiledTrieNode::RangeNode(RangeNode {
-                nb_siblings: 0,
-                first_char: 'd',
-                range: IndexRange::new(0)..IndexRange::new(3),
-            }),
-            CompiledTrieNode::RangeNode(RangeNode {
-                nb_siblings: 0,
-                first_char: 'd',
-                range: IndexRange::new(3)..IndexRange::new(6),
-            }),
-            CompiledTrieNode::NaiveNode(NaiveNode {
-                nb_siblings: 2,
-                index_first_child: None,
-                word_freq: NonZeroU32::new(9),
-                character: 'a',
-            }),
-            CompiledTrieNode::PatriciaNode(PatriciaNode {
-                nb_siblings: 1,
-                index_first_child: None,
-                word_freq: NonZeroU32::new(1),
-                char_range: IndexChar::new(5)..IndexChar::new(5 + HE_COMES.len() as u32),
-            }),
-            CompiledTrieNode::RangeNode(RangeNode {
-                nb_siblings: 0,
-                first_char: 'r',
-                range: IndexRange::new(6)..IndexRange::new(12),
-            }),
-            CompiledTrieNode::PatriciaNode(PatriciaNode {
-                nb_siblings: 0,
-                index_first_child: None,
-                word_freq: NonZeroU32::new(999),
-                char_range: IndexChar::new(5 + HE_COMES.len() as u32)
-                    ..IndexChar::new((5 + HE_COMES.len() + RUST_IS_LOVE.len()) as u32),
-            }),
+            CompiledTrieNode::new_patricia(
+                PatriciaNode {
+                    index_first_child: NonZeroU32::new(2).map(IndexNodeNonZero::new),
+                    word_freq: NonZeroU32::new(1),
+                    start_index: IndexChar::new(0),
+                },
+                1,
+                5,
+            ),
+            CompiledTrieNode::new_range(
+                RangeNode {
+                    first_char: 'd',
+                    start_index: IndexRange::new(0),
+                    end_index: IndexRange::new(3),
+                },
+                0,
+            ),
+            CompiledTrieNode::new_range(
+                RangeNode {
+                    first_char: 'd',
+                    start_index: IndexRange::new(3),
+                    end_index: IndexRange::new(6),
+                },
+                0,
+            ),
+            CompiledTrieNode::new_naive(
+                NaiveNode {
+                    index_first_child: None,
+                    word_freq: NonZeroU32::new(9),
+                    character: 'a',
+                },
+                2,
+            ),
+            CompiledTrieNode::new_patricia(
+                PatriciaNode {
+                    index_first_child: None,
+                    word_freq: NonZeroU32::new(1),
+                    start_index: IndexChar::new(5),
+                },
+                1,
+                HE_COMES.len() as u32,
+            ),
+            CompiledTrieNode::new_range(
+                RangeNode {
+                    first_char: 'r',
+                    start_index: IndexRange::new(6),
+                    end_index: IndexRange::new(12),
+                },
+                0,
+            ),
+            CompiledTrieNode::new_patricia(
+                PatriciaNode {
+                    index_first_child: None,
+                    word_freq: NonZeroU32::new(999),
+                    start_index: IndexChar::new(5 + HE_COMES.len() as u32),
+                },
+                0,
+                RUST_IS_LOVE.len() as u32,
+            ),
         ];
         let target_chars = ["apata", HE_COMES, RUST_IS_LOVE].concat();
         let target_ranges = vec![

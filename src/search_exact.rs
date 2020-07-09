@@ -1,21 +1,22 @@
 use std::num::NonZeroU32;
-use vague_search_core::{CompiledTrie, CompiledTrieNode, IndexNodeNonZero};
+use vague_search_core::{CompiledTrie, CompiledTrieNode, IndexNodeNonZero, NodeValue};
 
 fn compare_keys(
     trie_node: &CompiledTrieNode,
     character: char,
     trie: &CompiledTrie,
 ) -> std::cmp::Ordering {
-    match trie_node {
-        CompiledTrieNode::PatriciaNode(node) => trie
-            .get_chars(&node.char_range)
+    match trie_node.node_value() {
+        NodeValue::Naive(node) => node.character.cmp(&character),
+        NodeValue::Patricia(_) => trie
+            // SAFETY: Safe because in a patricia node
+            .get_chars(unsafe { &trie_node.patricia_range() })
             .chars()
             .next()
             .unwrap()
             .cmp(&character),
-        CompiledTrieNode::NaiveNode(node) => node.character.cmp(&character),
-        CompiledTrieNode::RangeNode(node) => {
-            let ranges = trie.get_range(&node.range);
+        NodeValue::Range(node) => {
+            let ranges = trie.get_range(&(node.start_index..node.end_index));
             if node.first_char > character {
                 std::cmp::Ordering::Greater
             } else if node.first_char as usize + ranges.len() < character as usize {
@@ -46,9 +47,23 @@ pub fn distance_zero(
             .ok()?;
 
         let child = unsafe { children.get_unchecked(index_child) };
-        children = match child {
-            CompiledTrieNode::PatriciaNode(node) => {
-                let chars = trie.get_chars(&node.char_range);
+
+        children = match child.node_value() {
+            NodeValue::Naive(node) => {
+                if word.len() == node.character.len_utf8() {
+                    return node.word_freq;
+                }
+                if let Some(index) = node.index_first_child {
+                    word = word.split_at(node.character.len_utf8()).1;
+                    trie.get_siblings(index)
+                } else {
+                    return None;
+                }
+            }
+            NodeValue::Patricia(node) => {
+                // SAFETY: Safe because in a patricia node
+                let patricia_range = unsafe { child.patricia_range() };
+                let chars = trie.get_chars(&patricia_range);
                 let lenchar = chars.len();
                 if lenchar > word.len() || !word.starts_with(chars) {
                     return None;
@@ -66,20 +81,9 @@ pub fn distance_zero(
                     return None;
                 }
             }
-            CompiledTrieNode::NaiveNode(node) => {
-                if word.len() == node.character.len_utf8() {
-                    return node.word_freq;
-                }
-                if let Some(index) = node.index_first_child {
-                    word = word.split_at(node.character.len_utf8()).1;
-                    trie.get_siblings(index)
-                } else {
-                    return None;
-                }
-            }
-            CompiledTrieNode::RangeNode(node) => {
+            NodeValue::Range(node) => {
                 let range = trie
-                    .get_range(&node.range)
+                    .get_range(&(node.start_index..node.end_index))
                     .get(first_char as usize - node.first_char as usize)?;
                 if word.len() == first_char.len_utf8() {
                     return range.word_freq;
