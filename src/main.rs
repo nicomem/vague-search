@@ -49,6 +49,7 @@ fn parse_args() -> Result<Args> {
 fn main() -> Result<()> {
     let args = parse_args()?;
 
+    eprintln!("Reading compressed dictionary...");
     let dict_file = DictionaryFile::read_file(&args.dict_path).context(DictionaryRead {
         path: args.dict_path,
     })?;
@@ -57,6 +58,11 @@ fn main() -> Result<()> {
     dbg!(dict_file.trie.get_root_siblings().unwrap());
 
     dbg!(distance_zero(&dict_file.trie, "ala", None));
+    dbg!(distance_zero(
+        &dict_file.trie,
+        "depannagevideo_galaxy_93130_noisy",
+        None
+    ));
 
     Ok(())
 }

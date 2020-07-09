@@ -29,20 +29,28 @@ const fn dummy_index() -> Option<IndexNodeNonZero> {
 /// and instead return the already present characters range of index.
 fn add_chars(big_string: &mut String, chars: &str) -> Range<IndexChar> {
     const SEARCH_LIMIT: usize = 2048;
-    let mut byte_windows = big_string
-        .as_bytes()
-        .windows(chars.len())
-        .rev()
-        .take(SEARCH_LIMIT)
-        .rev();
+
+    let nb_bytes_searched = SEARCH_LIMIT.min(big_string.len());
+    let search_window_index = big_string.len() - nb_bytes_searched;
+
+    let search_bytes = &big_string.as_bytes()[search_window_index..];
+    let mut byte_windows = search_bytes.windows(chars.len()).take(SEARCH_LIMIT);
 
     let found = byte_windows.position(|win| win == chars.as_bytes());
-    let pos = found.unwrap_or_else(|| {
+    let pos = if let Some(search_window_pos) = found {
+        // The found index is relative to the search window
+        // so the last SEARCH_LIMIT bytes.
+
+        // To find the position of the found substring, we need to find the index
+        // of the search window (= SEARCH_LIMIT bytes before the end)
+        // and then add the position of the found substring.
+        search_window_index + search_window_pos
+    } else {
         // Save the start position where chars will be added
         let start_pos = big_string.len();
         big_string.push_str(chars);
         start_pos
-    });
+    };
 
     let start = IndexChar::new(pos as u32);
     let end = IndexChar::new((pos + chars.len()) as u32);

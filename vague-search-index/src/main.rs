@@ -48,11 +48,14 @@ fn parse_args() -> Result<Args> {
 fn main() -> Result<()> {
     let args = parse_args()?;
 
+    eprintln!("Creating Patricia Trie from the file...");
     let patricia_trie = PatriciaNode::create_from_file(&args.words_path)?;
 
+    eprintln!("Patricia Trie created, compressing...");
     let compiled: CompiledTrie = patricia_trie.into();
     let dict_file: DictionaryFile = compiled.into();
 
+    eprintln!("Writing compressed dictionary...");
     dict_file.write_file(&args.dict_path).context(DictWrite {
         path: &args.dict_path,
     })
