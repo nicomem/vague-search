@@ -20,6 +20,12 @@ impl<E, S: Copy + Into<usize>> LayerStack<E, S> {
         }
     }
 
+    /// Clear the stack of all elements. Do not deallocate its storage.
+    pub fn clear(&mut self) {
+        self.elements.clear();
+        self.layers.clear();
+    }
+
     /// Create a new layer of the wanted size in the stack and return it.
     ///
     /// The last pushed is also accessible by calling the

@@ -28,7 +28,7 @@ fn compare_keys(
     }
 }
 
-pub fn distance_zero(
+pub fn search_exact(
     trie: &CompiledTrie,
     mut word: &str,
     index: Option<IndexNodeNonZero>,
@@ -170,19 +170,19 @@ mod test {
         );
         let compiled = CompiledTrie::from(root);
 
-        let search_cata = distance_zero(&compiled, "cata", None);
+        let search_cata = search_exact(&compiled, "cata", None);
         assert!(search_cata.is_some());
         assert_eq!(search_cata.unwrap(), NonZeroU32::new(1).unwrap());
 
-        let search_da = distance_zero(&compiled, "da", None);
+        let search_da = search_exact(&compiled, "da", None);
         assert!(search_da.is_some());
         assert_eq!(search_da.unwrap(), NonZeroU32::new(9).unwrap());
 
-        let search_dfade = distance_zero(&compiled, "fade", None);
+        let search_dfade = search_exact(&compiled, "fade", None);
         assert!(search_dfade.is_some());
         assert_eq!(search_dfade.unwrap(), NonZeroU32::new(10).unwrap());
 
-        let search_ala = distance_zero(&compiled, "ala", None);
+        let search_ala = search_exact(&compiled, "ala", None);
         assert!(search_ala.is_some());
         assert_eq!(search_ala.unwrap(), NonZeroU32::new(20).unwrap());
     }

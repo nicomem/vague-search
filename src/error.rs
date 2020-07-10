@@ -16,6 +16,10 @@ pub enum Error {
         path: PathBuf,
         source: vague_search_core::Error,
     },
+    #[snafu(display("Error while reading the standard input stream: {}", source))]
+    Stdin { source: std::io::Error },
+    #[snafu(display("Error while parsing the command '{}': {}", line, cause))]
+    CommandParse { line: String, cause: String },
 }
 
 // Link Error to Display to print the message when an error is returned from main.
