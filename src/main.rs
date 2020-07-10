@@ -1,6 +1,6 @@
 //! The application binary of the vague-search project.
 //!
-//! Listen for actions in [the standard input stream](std::io::stdin)
+//! Listen for actions in the [standard input stream](std::io::stdin)
 //! of the syntax `approx <N> <WORD>` to search for words in a
 //! [distance](https://en.wikipedia.org/wiki/Damerau%E2%80%93Levenshtein_distance)
 //! of at most N inside a compiled dictionary.
@@ -13,13 +13,14 @@
 
 use error::*;
 use layer_stack::*;
-use search_exact::distance_zero;
+use search_exact::search_exact;
 use snafu::*;
 use std::path::PathBuf;
 use vague_search_core::DictionaryFile;
 
 mod error;
 mod layer_stack;
+mod query;
 mod search_approx;
 mod search_exact;
 
@@ -57,11 +58,14 @@ fn main() -> Result<()> {
         path: args.dict_path,
     })?;
 
+    eprintln!("Listening for queries in stdin...");
+    query::process_stdin_queries(&dict_file.trie)?;
+
     // TODO: Do the app
     dbg!(dict_file.trie.get_root_siblings().unwrap());
 
-    dbg!(distance_zero(&dict_file.trie, "ala", None));
-    dbg!(distance_zero(
+    dbg!(search_exact(&dict_file.trie, "ala", None));
+    dbg!(search_exact(
         &dict_file.trie,
         "depannagevideo_galaxy_93130_noisy",
         None
