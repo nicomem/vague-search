@@ -57,7 +57,7 @@ fn append_result_to_json(word: &str, freq: NonZeroU32, dist: Distance, json_buff
     json_buffer.push_str(r#"","freq":"#);
     json_buffer.push_str(&freq.to_string());
     json_buffer.push_str(r#","distance":"#);
-    json_buffer.push_str(&json_buffer.to_string());
+    json_buffer.push_str(&dist.to_string());
     json_buffer.push('}');
 }
 

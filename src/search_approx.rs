@@ -24,12 +24,12 @@ pub struct FoundWord {
 ///
 /// Return a vector of all found words with their respective frequency.
 pub fn search_approx(
-    trie: &CompiledTrie,
-    word: &str,
-    distance: Distance,
-    layer_stack: &mut LayerStack<Distance, WordSize>,
-    iter_stack: &mut IterationStack,
-    result_buffer: Vec<FoundWord>,
+    _trie: &CompiledTrie,
+    _word: &str,
+    _distance: Distance,
+    _layer_stack: &mut LayerStack<Distance, WordSize>,
+    _iter_stack: &mut IterationStack,
+    _result_buffer: Vec<FoundWord>,
 ) -> Vec<FoundWord> {
     todo!()
 }
