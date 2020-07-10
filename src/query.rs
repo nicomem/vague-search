@@ -129,7 +129,7 @@ fn process_search_approx(
 }
 
 /// Display the JSON result in the [standard output stream](std::io::stdout)
-fn display_json_result(json_buffer: &Json) {
+fn display_json_result(json_buffer: &str) {
     println!("{}", json_buffer);
 }
 
@@ -152,11 +152,18 @@ pub fn process_stdin_queries(trie: &CompiledTrie) -> Result<()> {
 
     let input_stream = std::io::stdin();
     loop {
+        line.clear();
         match input_stream.read_line(&mut line) {
             Ok(0) => return Ok(()), // EOF reached
             Ok(_) => {
                 // Parse the command
-                let (word, dist) = parse_command_line(&line)?;
+                let (word, dist) = match parse_command_line(&line.trim()) {
+                    Ok(e) => e,
+                    Err(e) => {
+                        eprintln!("> {}", e);
+                        continue;
+                    }
+                };
 
                 // Search and return the result in a JSON representation
                 json_buffer = if dist == 0 {
