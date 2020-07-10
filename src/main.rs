@@ -12,12 +12,14 @@
 //! documentation about types and functions shared by the binaries.
 
 use error::*;
+use layer_stack::*;
 use search_exact::distance_zero;
 use snafu::*;
 use std::path::PathBuf;
 use vague_search_core::DictionaryFile;
 
 mod error;
+mod layer_stack;
 mod search_approx;
 mod search_exact;
 
@@ -64,6 +66,14 @@ fn main() -> Result<()> {
         "depannagevideo_galaxy_93130_noisy",
         None
     ));
+
+    let mut stack = LayerStack::<u16, u8>::with_capacity(0, 0);
+    let layer = stack.push_layer(10);
+    layer[0] = 42;
+    layer[9] = 24;
+    dbg!(layer);
+    let _ = stack.fetch_layer();
+    stack.pop_layer();
 
     Ok(())
 }
