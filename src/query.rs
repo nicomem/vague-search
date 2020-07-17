@@ -5,7 +5,7 @@ use crate::{
     search_exact::search_exact,
 };
 use snafu::*;
-use std::num::NonZeroU32;
+use std::{cmp::Ordering, num::NonZeroU32};
 use vague_search_core::CompiledTrie;
 
 type Json = String;
@@ -102,6 +102,9 @@ fn process_search_approx(
         iter_stack,
         std::mem::take(result_buffer),
     );
+
+    // Sort the results based on the order defined by FoundWord
+    result_buffer.sort_unstable();
 
     json_buffer.push('[');
     for found_word in result_buffer.iter_mut() {
