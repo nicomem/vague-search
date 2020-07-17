@@ -1,6 +1,8 @@
 use crate::layer_stack::LayerStack;
 use std::{cmp::min, num::NonZeroU32};
-use vague_search_core::{CompiledTrie, CompiledTrieNode};
+use vague_search_core::{
+    CompiledTrie, CompiledTrieNode, NaiveNode, NodeValue, PatriciaNode, RangeNode,
+};
 
 /// A type to store searching distances.
 pub type Distance = u16;
@@ -80,17 +82,68 @@ fn push_first_layer(
     }
 }
 
+fn push_layers_naive(
+    node: &NaiveNode,
+    iter_elem: &IterationElement,
+    word: &str,
+    layer_stack: &mut LayerStack<Distance, WordSize>,
+) {
+    let layer = layer_stack.push_layer(Some(node.character), word.len() as _);
+
+    todo!()
+}
+
+fn push_layers_patricia(
+    node: &PatriciaNode,
+    iter_elem: &IterationElement,
+    word: &str,
+    layer_stack: &mut LayerStack<Distance, WordSize>,
+    trie: &CompiledTrie,
+) {
+    // SAFETY: Safe because in a patricia node
+    let range_chars = unsafe { iter_elem.node.patricia_range() };
+    let pat_chars = trie.get_chars(&range_chars);
+
+    for ch in pat_chars.chars() {
+        let layer = layer_stack.push_layer(Some(ch), word.len() as _);
+        todo!("Should be like naive but with looping through the pat characters")
+    }
+}
+
+fn push_layers_range(
+    node: &RangeNode,
+    iter_elem: &IterationElement,
+    word: &str,
+    layer_stack: &mut LayerStack<Distance, WordSize>,
+) {
+    // SAFETY: Safety checked during dictionary compilation
+    let character =
+        unsafe { std::char::from_u32_unchecked(node.first_char as u32 + iter_elem.range_offset) };
+    let layer = layer_stack.push_layer(Some(character), word.len() as _);
+
+    todo!()
+}
+
 /// Process the current node and update the layer stack with the node's new layers.
-fn push_layers_current_node() {
-    todo!("Add params, compute distances, push layers for each character (we could maybe be more opti in the future)");
+fn push_layers_current_node(
+    iter_elem: &IterationElement,
+    word: &str,
+    trie: &CompiledTrie,
+    layer_stack: &mut LayerStack<Distance, WordSize>,
+) {
+    match iter_elem.node.node_value() {
+        NodeValue::Naive(n) => push_layers_naive(n, iter_elem, word, layer_stack),
+        NodeValue::Patricia(n) => push_layers_patricia(n, iter_elem, word, layer_stack, trie),
+        NodeValue::Range(n) => push_layers_range(n, iter_elem, word, layer_stack),
+    }
 }
 
 /// Retrieve the node frequency.
 fn get_node_frequency(iter_elem: &IterationElement, trie: &CompiledTrie) -> Option<NonZeroU32> {
     match iter_elem.node.node_value() {
-        vague_search_core::NodeValue::Naive(n) => n.word_freq,
-        vague_search_core::NodeValue::Patricia(n) => n.word_freq,
-        vague_search_core::NodeValue::Range(n) => {
+        NodeValue::Naive(n) => n.word_freq,
+        NodeValue::Patricia(n) => n.word_freq,
+        NodeValue::Range(n) => {
             let range = n.start_index..n.end_index;
             let slice = trie.get_range(&range);
             let elem = &slice[iter_elem.range_offset as usize];
@@ -136,9 +189,9 @@ fn get_node_children<'a>(
 ) -> &'a [CompiledTrieNode] {
     // Get the index of the node's first child
     let index = match iter_elem.node.node_value() {
-        vague_search_core::NodeValue::Naive(n) => n.index_first_child,
-        vague_search_core::NodeValue::Patricia(n) => n.index_first_child,
-        vague_search_core::NodeValue::Range(n) => {
+        NodeValue::Naive(n) => n.index_first_child,
+        NodeValue::Patricia(n) => n.index_first_child,
+        NodeValue::Range(n) => {
             let range = n.start_index..n.end_index;
             let slice = trie.get_range(&range);
             let elem = &slice[iter_elem.range_offset as usize];
@@ -189,7 +242,7 @@ pub fn search_approx<'a>(
         };
 
         // Compute and push the distance layers of the current node
-        push_layers_current_node();
+        push_layers_current_node(&iter_elem, word, trie, layer_stack);
 
         // SAFETY: The layer stack is not empty at this point
         let cur_layer = layer_stack
