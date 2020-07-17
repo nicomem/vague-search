@@ -5,7 +5,7 @@ use crate::{
     search_exact::search_exact,
 };
 use snafu::*;
-use std::{cmp::Ordering, num::NonZeroU32};
+use std::num::NonZeroU32;
 use vague_search_core::CompiledTrie;
 
 type Json = String;
@@ -78,12 +78,12 @@ fn process_search_exact(trie: &CompiledTrie, word: &str, mut json_buffer: Json) 
 
 /// Search for all words in the trie at a given distance (or less) of the query
 /// and return the result in a JSON representation.
-fn process_search_approx(
-    trie: &CompiledTrie,
+fn process_search_approx<'a>(
+    trie: &'a CompiledTrie,
     word: &str,
     distance: Distance,
     layer_stack: &mut LayerStack<Distance, WordSize>,
-    iter_stack: &mut IterationStack,
+    iter_stack: &mut IterationStack<'a>,
     result_buffer: &mut Vec<FoundWord>,
     mut json_buffer: String,
 ) -> Json {

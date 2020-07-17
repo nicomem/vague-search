@@ -1,8 +1,6 @@
-// TODO Add search approx function
-
 use crate::layer_stack::LayerStack;
 use std::{cmp::min, num::NonZeroU32};
-use vague_search_core::{CompiledTrie, CompiledTrieNode, NodeValue};
+use vague_search_core::{CompiledTrie, CompiledTrieNode};
 
 /// A type to store searching distances.
 pub type Distance = u16;
@@ -10,8 +8,19 @@ pub type Distance = u16;
 /// A type to store word sizes.
 pub type WordSize = u16;
 
+/// An iteration element. Includes what is needed to continue the iteration.
+/// Similar to what the compiler would store during a recursion call.
+/// However by doing it manually, some optimizations can be applied.
+pub struct IterationElement<'a> {
+    node: &'a CompiledTrieNode,
+    last_char: Option<char>,
+    // TODO: Add what's necessary to process RangeNodes
+    // probably the index in the range
+}
+
 /// A stack of iterations, used to linearise the recursive searching algorithm.
-pub type IterationStack = Vec<Option<CompiledTrieNode>>; // TODO
+/// The end of a layer is represented by a "dummy node", which is a None element.
+pub type IterationStack<'a> = Vec<Option<IterationElement<'a>>>;
 
 /// A word that have been found by a search query.
 #[derive(Eq, PartialEq)]
@@ -36,24 +45,173 @@ impl Ord for FoundWord {
     }
 }
 
-fn init_array(num: usize) -> Vec<u32> {
-    let vector = Vec::with_capacity(num);
-    for i in 0..(num as u32) {
-        vector.push(i);
+/// Retrieve and push the root nodes in the iteration stack.
+fn push_layer_nodes<'a>(iter_stack: &mut IterationStack<'a>, nodes: &'a [CompiledTrieNode]) {
+    iter_stack.reserve(nodes.len() + 1);
+
+    // Push a dummy node to represent the end of the layer
+    iter_stack.push(None);
+
+    // Push the nodes in reverse order to pop them in the correct order in the future
+    for node in nodes.iter().rev() {
+        iter_stack.push(Some(IterationElement {
+            node,
+            last_char: None,
+        }));
     }
-    vector
+}
+
+/// Create and push the first layer in the layer stack.
+fn push_first_layer(
+    layer_stack: &mut LayerStack<Distance, WordSize>,
+    layer_char: Option<char>,
+    word_size: WordSize,
+) {
+    let layer = layer_stack.push_layer(layer_char, word_size);
+    for (i, e) in layer.iter_mut().enumerate() {
+        *e = i as _;
+    }
+}
+
+/// Process the current node and update the layer stack with the node's new layers.
+fn push_layers_current_node() {
+    todo!();
+}
+
+/// Retrieve the node frequency.
+fn get_node_frequency(iter_elem: &IterationElement) -> Option<NonZeroU32> {
+    todo!()
+}
+
+/// Get the current distance to the query word from the current distance layer.
+fn get_current_distance(cur_layer: &[Distance]) -> Distance {
+    *cur_layer.last().unwrap()
+}
+
+/// Check if the word can be added to the result and add it if so.
+fn check_add_word_to_result(
+    iter_elem: &IterationElement,
+    cur_layer: &[Distance],
+    dist_max: Distance,
+    layer_word: &str,
+    result_buffer: &mut Vec<FoundWord>,
+) {
+    // If end word and less than max dist => Add to result
+    let dist = get_current_distance(cur_layer);
+    if dist <= dist_max {
+        if let Some(freq) = get_node_frequency(iter_elem) {
+            result_buffer.push(FoundWord {
+                word: layer_word.to_owned(),
+                freq,
+                dist,
+            })
+        }
+    }
+}
+
+fn any_below_max_dist(cur_layer: &[Distance], dist_max: Distance) -> bool {
+    cur_layer.iter().any(|&d| d < dist_max)
+}
+
+fn get_node_children<'a>(
+    trie: &'a CompiledTrie,
+    iter_elem: &IterationElement,
+) -> &'a [CompiledTrieNode] {
+    // Get the index of the node's first child
+    let index = match iter_elem.node.node_value() {
+        vague_search_core::NodeValue::Naive(n) => n.index_first_child,
+        vague_search_core::NodeValue::Patricia(n) => n.index_first_child,
+        vague_search_core::NodeValue::Range(n) => todo!("Get ith element in range"),
+    };
+
+    // Get it and its siblings, or return an empty slice if no index (no children)
+    match index {
+        Some(i) => trie.get_siblings(i),
+        None => Default::default(),
+    }
+}
+
+/// Search for all words in the trie at a given distance (or less) of the query.
+///
+/// Return a vector of all found words with their respective frequency.
+pub fn search_approx<'a>(
+    trie: &'a CompiledTrie,
+    word: &str,
+    dist_max: Distance,
+    layer_stack: &mut LayerStack<Distance, WordSize>,
+    iter_stack: &mut IterationStack<'a>,
+    mut result_buffer: Vec<FoundWord>,
+) -> Vec<FoundWord> {
+    // Early return if nothing to search
+    if word.is_empty() {
+        return result_buffer;
+    }
+
+    // Retrieve the root nodes
+    let roots = trie.get_root_siblings().unwrap();
+
+    // Initialize both stacks
+    push_layer_nodes(iter_stack, roots);
+    push_first_layer(layer_stack, None, word.len() as _);
+
+    // Loop over the iteration stack until empty
+    while let Some(iter_elem_opt) = iter_stack.pop() {
+        // Extract the node or process the dummy node
+        let iter_elem = match iter_elem_opt {
+            Some(n) => n,
+            None => {
+                // Dummy node => represents the end of a layer
+                layer_stack.pop_layer();
+                continue;
+            }
+        };
+
+        // Compute and push the distance layers of the current node
+        push_layers_current_node();
+
+        // SAFETY: The layer stack is not empty at this point
+        let cur_layer = layer_stack
+            .fetch_layer()
+            .unwrap_or_else(|| unsafe { std::hint::unreachable_unchecked() });
+
+        let layer_word = layer_stack.get_layers_word();
+
+        // Add trie node's word to result if it can be
+        check_add_word_to_result(
+            &iter_elem,
+            cur_layer,
+            dist_max,
+            layer_word,
+            &mut result_buffer,
+        );
+
+        let children = get_node_children(trie, &iter_elem);
+
+        // If no children or current word has exceeded dist_max,
+        // remove its layer and continue with next iteration
+        if children.is_empty() || !any_below_max_dist(cur_layer, dist_max) {
+            layer_stack.pop_layer();
+            continue;
+        }
+
+        // Add all children to the stack
+        push_layer_nodes(iter_stack, children);
+    }
+
+    // Return the result buffer that has been filled in the stack loop
+    result_buffer
 }
 
 /// Levenshtein updating of matrices lines
 fn update_line(new_line: &mut [u16], parent_line: &[u16], same_letters: bool) {
-    for (i, cell) in new_line.iter_mut().enumerate() {
+    for i in 1..new_line.len() {
         let insert_cost = new_line[i - 1] + 1;
         let delete_cost = parent_line[i];
         let replace_cost = parent_line[i] + (same_letters as u16);
 
         // TODO: Compute Damerau substitution cost
         let subst_cost = u16::MAX;
-        *cell = min(min(insert_cost, delete_cost), min(replace_cost, subst_cost));
+        new_line[i] = min(min(insert_cost, delete_cost), min(replace_cost, subst_cost));
     }
 }
 
@@ -69,136 +227,115 @@ fn full_distance(line: &[u16], word_len: WordSize) -> u16 {
     line[word_len as usize]
 }
 
-/// Search for all words in the trie at a given distance (or less) of the query.
-///
-/// Return a vector of all found words with their respective frequency.
-pub fn search_approx(
-    trie: &CompiledTrie,
-    word: &str,
-    distance: Distance,
-    layer_stack: &mut LayerStack<Distance, WordSize>,
-    iter_stack: &mut IterationStack,
-    result_buffer: Vec<FoundWord>,
-) -> Vec<FoundWord> {
-    // Early return if nothing to search
-    if word.is_empty() {
-        return result_buffer;
-    }
+// // Keep track of current recursive word length in trie
+// let trie_sizes_stack: Vec<u16> = Vec::new();
+// // First row begins by 0
+// trie_sizes_stack.push(0);
 
-    let roots = trie.get_root_siblings().unwrap();
+// let root_line = init_array(word.len() + 1);
+// for root in roots {
+//     iter_stack.push(Some(*root));
+//     loop {
+//         let compiled_node_option = match iter_stack.pop() {
+//             Some(r) => r,
+//             None => break,
+//         };
 
-    // Keep track of current recursive word length in trie
-    let trie_sizes_stack: Vec<u16> = Vec::new();
-    // First row begins by 0
-    trie_sizes_stack.push(0);
+//         // If layer found: continue
+//         // Else loop is over
+//         let compiled_node = match compiled_node_option {
+//             Some(node) => node,
+//             None => {
+//                 if !layer_stack.pop_layer() || trie_sizes_stack.pop().is_none() {
+//                     break;
+//                 }
+//                 continue;
+//             }
+//         };
 
-    let root_line = init_array(word.len() + 1);
-    for root in roots {
-        iter_stack.push(Some(*root));
-        loop {
-            let compiled_node_option = match iter_stack.pop() {
-                Some(r) => r,
-                None => break,
-            };
+//         // Fetch lines
+//         let parent_line = layer_stack.fetch_layer().unwrap();
+//         let current_length = trie_sizes_stack.last().unwrap();
+//         let new_line = layer_stack.push_layer(word.len() as WordSize + 1);
 
-            // If layer found: continue
-            // Else loop is over
-            let compiled_node = match compiled_node_option {
-                Some(node) => node,
-                None => {
-                    if !layer_stack.pop_layer() || trie_sizes_stack.pop().is_none() {
-                        break;
-                    }
-                    continue;
-                }
-            };
+//         // Compute line
+//         match compiled_node.node_value() {
+//             NodeValue::Naive(node) => {
+//                 // init first index with current length
+//                 new_line[0] = *current_length;
+//                 // potential FIXME
+//                 update_line(
+//                     new_line,
+//                     parent_line,
+//                     node.character == word.chars().next().unwrap(),
+//                 );
 
-            // Fetch lines
-            let parent_line = layer_stack.fetch_layer().unwrap();
-            let current_length = trie_sizes_stack.last().unwrap();
-            let new_line = layer_stack.push_layer(word.len() as WordSize + 1);
+//                 if let Some(index) = node.index_first_child {
+//                     iter_stack.push(None);
+//                     for child in trie.get_siblings(index).iter().rev() {
+//                         // Push children
+//                         iter_stack.push(Some(*child));
+//                     }
+//                 }
+//             }
+//             NodeValue::Patricia(node) => {
+//                 let chars_it = trie
+//                     // SAFETY: Safe because in a patricia node
+//                     .get_chars(unsafe { &compiled_node.patricia_range() })
+//                     .chars();
+//                 let word_it = word.chars();
 
-            // Compute line
-            match compiled_node.node_value() {
-                NodeValue::Naive(node) => {
-                    // init first index with current length
-                    new_line[0] = *current_length;
-                    // potential FIXME
-                    update_line(
-                        new_line,
-                        parent_line,
-                        node.character == word.chars().next().unwrap(),
-                    );
+//                 // Calculate and update lines
+//                 // Also update curr_length
+//                 // The length will allow to check if one of the word ended first
+//                 let length: WordSize = 0;
+//                 // FIXME abort if current distance greater than minimum distance
+//                 loop {
+//                     let node_char = chars_it.next();
+//                     let word_char = word_it.next();
 
-                    if let Some(index) = node.index_first_child {
-                        iter_stack.push(None);
-                        for child in trie.get_siblings(index).iter().rev() {
-                            // Push children
-                            iter_stack.push(Some(*child));
-                        }
-                    }
-                }
-                NodeValue::Patricia(node) => {
-                    let chars_it = trie
-                        // SAFETY: Safe because in a patricia node
-                        .get_chars(unsafe { &compiled_node.patricia_range() })
-                        .chars();
-                    let word_it = word.chars();
+//                     // Word finished before patricia finished
+//                     // This wasn't a potential node
+//                     if node_char.is_some() && word_char.is_none() {
+//                         return None; // TODO: Don't return but continue queue
+//                     }
 
-                    // Calculate and update lines
-                    // Also update curr_length
-                    // The length will allow to check if one of the word ended first
-                    let length: WordSize = 0;
-                    // FIXME abort if current distance greater than minimum distance
-                    loop {
-                        let node_char = chars_it.next();
-                        let word_char = word_it.next();
+//                     if node_char.is_none() || word_char.is_none() {
+//                         break;
+//                     }
 
-                        // Word finished before patricia finished
-                        // This wasn't a potential node
-                        if node_char.is_some() && word_char.is_none() {
-                            return None; // TODO: Don't return but continue queue
-                        }
+//                     new_line[0] = *current_length;
+//                     update_line(
+//                         new_line,
+//                         parent_line,
+//                         node_char.unwrap() == word_char.unwrap(),
+//                     );
+//                     // Copy from NodeLine (equivalent to clone), sizes are assured to be the same
+//                     // Allows to reuse parent_line for next iteration and node_line calculation
+//                     parent_line.copy_from_slice(new_line);
+//                     length += 1;
+//                 }
+//                 if word.len() == (current_length + length) as usize && node.word_freq.is_some()
+//                 {
+//                     result_buffer.push(FoundWord {
+//                         word: String::new(),
+//                         freq: node.word_freq.unwrap(),
+//                         dist: 0,
+//                     })
+//                 }
 
-                        if node_char.is_none() || word_char.is_none() {
-                            break;
-                        }
+//                 if let Some(index) = node.index_first_child {
+//                     iter_stack.push(None);
+//                     for child in trie.get_siblings(index).iter().rev() {
+//                         iter_stack.push(Some(*child));
+//                     }
+//                 }
+//             }
+//             NodeValue::Range(node) => {
+//                 let ranges = trie.get_range(&(node.start_index..node.end_index));
+//             }
+//         }
 
-                        new_line[0] = *current_length;
-                        update_line(
-                            new_line,
-                            parent_line,
-                            node_char.unwrap() == word_char.unwrap(),
-                        );
-                        // Copy from NodeLine (equivalent to clone), sizes are assured to be the same
-                        // Allows to reuse parent_line for next iteration and node_line calculation
-                        parent_line.copy_from_slice(new_line);
-                        length += 1;
-                    }
-                    if word.len() == (current_length + length) as usize && node.word_freq.is_some()
-                    {
-                        result_buffer.push(FoundWord {
-                            word: String::new(),
-                            freq: node.word_freq.unwrap(),
-                            dist: 0,
-                        })
-                    }
-
-                    if let Some(index) = node.index_first_child {
-                        iter_stack.push(None);
-                        for child in trie.get_siblings(index).iter().rev() {
-                            iter_stack.push(Some(*child));
-                        }
-                    }
-                }
-                NodeValue::Range(node) => {
-                    let ranges = trie.get_range(&(node.start_index..node.end_index));
-                }
-            }
-
-            // Find children
-        }
-    }
-
-    result_buffer
-}
+//         // Find children
+//     }
+// }

@@ -71,13 +71,5 @@ fn main() -> Result<()> {
         None
     ));
 
-    let mut stack = LayerStack::<u16, u8>::with_capacity(0, 0);
-    let layer = stack.push_layer(10);
-    layer[0] = 42;
-    layer[9] = 24;
-    dbg!(layer);
-    let _ = stack.fetch_layer();
-    stack.pop_layer();
-
     Ok(())
 }
