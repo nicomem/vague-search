@@ -12,10 +12,16 @@ pub type WordSize = u16;
 /// Similar to what the compiler would store during a recursion call.
 /// However by doing it manually, some optimizations can be applied.
 pub struct IterationElement<'a> {
+    /// The current trie node.
     node: &'a CompiledTrieNode,
+
+    /// The last character of the trie path, useful for the Damerau-Levenshtein
+    /// distance computation.
     last_char: Option<char>,
-    // TODO: Add what's necessary to process RangeNodes
-    // probably the index in the range
+
+    /// The current index in the range.
+    /// Its value is not specified if the node is not a [RangeNode](vague_search_core::RangeNode).
+    range_offset: u32,
 }
 
 /// A stack of iterations, used to linearise the recursive searching algorithm.
@@ -57,6 +63,7 @@ fn push_layer_nodes<'a>(iter_stack: &mut IterationStack<'a>, nodes: &'a [Compile
         iter_stack.push(Some(IterationElement {
             node,
             last_char: None,
+            range_offset: 0,
         }));
     }
 }
@@ -75,12 +82,21 @@ fn push_first_layer(
 
 /// Process the current node and update the layer stack with the node's new layers.
 fn push_layers_current_node() {
-    todo!();
+    todo!("Add params, compute distances, push layers for each character (we could maybe be more opti in the future)");
 }
 
 /// Retrieve the node frequency.
-fn get_node_frequency(iter_elem: &IterationElement) -> Option<NonZeroU32> {
-    todo!()
+fn get_node_frequency(iter_elem: &IterationElement, trie: &CompiledTrie) -> Option<NonZeroU32> {
+    match iter_elem.node.node_value() {
+        vague_search_core::NodeValue::Naive(n) => n.word_freq,
+        vague_search_core::NodeValue::Patricia(n) => n.word_freq,
+        vague_search_core::NodeValue::Range(n) => {
+            let range = n.start_index..n.end_index;
+            let slice = trie.get_range(&range);
+            let elem = &slice[iter_elem.range_offset as usize];
+            elem.word_freq
+        }
+    }
 }
 
 /// Get the current distance to the query word from the current distance layer.
@@ -94,12 +110,13 @@ fn check_add_word_to_result(
     cur_layer: &[Distance],
     dist_max: Distance,
     layer_word: &str,
+    trie: &CompiledTrie,
     result_buffer: &mut Vec<FoundWord>,
 ) {
     // If end word and less than max dist => Add to result
     let dist = get_current_distance(cur_layer);
     if dist <= dist_max {
-        if let Some(freq) = get_node_frequency(iter_elem) {
+        if let Some(freq) = get_node_frequency(iter_elem, trie) {
             result_buffer.push(FoundWord {
                 word: layer_word.to_owned(),
                 freq,
@@ -121,7 +138,12 @@ fn get_node_children<'a>(
     let index = match iter_elem.node.node_value() {
         vague_search_core::NodeValue::Naive(n) => n.index_first_child,
         vague_search_core::NodeValue::Patricia(n) => n.index_first_child,
-        vague_search_core::NodeValue::Range(n) => todo!("Get ith element in range"),
+        vague_search_core::NodeValue::Range(n) => {
+            let range = n.start_index..n.end_index;
+            let slice = trie.get_range(&range);
+            let elem = &slice[iter_elem.range_offset as usize];
+            elem.index_first_child
+        }
     };
 
     // Get it and its siblings, or return an empty slice if no index (no children)
@@ -182,6 +204,7 @@ pub fn search_approx<'a>(
             cur_layer,
             dist_max,
             layer_word,
+            trie,
             &mut result_buffer,
         );
 

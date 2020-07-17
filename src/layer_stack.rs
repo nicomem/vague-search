@@ -106,8 +106,8 @@ impl<E, S: Copy + Into<usize>> LayerStack<E, S> {
     /// Those empty slices are still returned as mutable but since they have
     /// a size of 0, they cannot be modified.
     pub fn fetch_last_2_layers(&mut self) -> (&mut [E], &mut [E]) {
-        match &self.layers[..] {
-            &[.., psize, lsize] => {
+        match self.layers[..] {
+            [.., psize, lsize] => {
                 // If at least 2 elements, get the last 2 layers sizes
                 // and find their start indices
                 let nb_elements = self.elements.len();
@@ -130,10 +130,10 @@ impl<E, S: Copy + Into<usize>> LayerStack<E, S> {
 
             // If only one element, return the entire elements slice
             // which correspond to the last and only layer
-            &[_] => (&mut self.elements[..], Default::default()),
+            [_] => (&mut self.elements[..], Default::default()),
 
             // If the stack is empty, return an empty slice
-            &[] => Default::default(),
+            [] => Default::default(),
         }
     }
 }

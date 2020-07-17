@@ -12,7 +12,6 @@
 //! documentation about types and functions shared by the binaries.
 
 use error::*;
-use layer_stack::*;
 use search_exact::search_exact;
 use snafu::*;
 use std::path::PathBuf;
