@@ -95,42 +95,58 @@ impl<E, S: Copy + Into<usize>> LayerStack<E, S> {
         }
     }
 
-    /// Try to fetch the last 2 layers as mutable slices.
+    /// Try to fetch the last 3 layers as mutable slices.
     ///
     /// Depending on the number of layers in the stack, the tuple can contain
     /// empty slices:
-    /// - \>= 2 elements: `(&mut last_layer, &mut parent_layer)`
-    /// - 1 element: `(&mut last_layer, [])`
-    /// - 0 element: `([], [])`
+    /// - \>= 3 elements: `[&mut cur_layer, &mut last_layer, &mut parent_layer]`
+    /// - \>= 2 elements: `[&mut cur_layer, &mut last_layer, []]`
+    /// - 1 element: `[&mut cur_layer, [], []]`
+    /// - 0 element: `[[], [], []]`
     ///
     /// Those empty slices are still returned as mutable but since they have
     /// a size of 0, they cannot be modified.
-    pub fn fetch_last_2_layers(&mut self) -> (&mut [E], &mut [E]) {
+    pub fn fetch_last_3_layers(&mut self) -> [&mut [E]; 3] {
         match self.layers[..] {
-            [.., psize, lsize] => {
+            [.., psize, lsize, csize] => {
                 // If at least 2 elements, get the last 2 layers sizes
                 // and find their start indices
                 let nb_elements = self.elements.len();
-                let i_last_layer = nb_elements - lsize.into();
+                let i_cur_layer = nb_elements - csize.into();
+                let i_last_layer = i_cur_layer - lsize.into();
                 let i_parent_layer = i_last_layer - psize.into();
 
                 // Split elements into two mutable slices at the index of the last slice
-                let (all_previous, last_layer) = self.elements.split_at_mut(i_last_layer);
-
-                // Here all_previous contains: (..index_last)
-                // and last_layer contains: (index_last..)
-
-                // So last_layer only contains the last layer (what we want)
-                // but all_previous contains an unwanted prefix which we need to remove
+                let (all_previous, cur_layer) = self.elements.split_at_mut(i_cur_layer);
+                let (all_previous, last_layer) = all_previous.split_at_mut(i_last_layer);
                 let parent_layer = &mut all_previous[i_parent_layer..];
 
                 // Return the slices of the two last layers
-                (last_layer, parent_layer)
+                [cur_layer, last_layer, parent_layer]
+            }
+
+            [lsize, csize] => {
+                // If at least 2 elements, get the last 2 layers sizes
+                // and find their start indices
+                let nb_elements = self.elements.len();
+                let i_cur_layer = nb_elements - csize.into();
+                let i_last_layer = i_cur_layer - lsize.into();
+
+                // Split elements into two mutable slices at the index of the last slice
+                let (all_previous, cur_layer) = self.elements.split_at_mut(i_cur_layer);
+                let last_layer = &mut all_previous[i_last_layer..];
+
+                // Return the slices of the two last layers
+                [cur_layer, last_layer, Default::default()]
             }
 
             // If only one element, return the entire elements slice
             // which correspond to the last and only layer
-            [_] => (&mut self.elements[..], Default::default()),
+            [_] => [
+                &mut self.elements[..],
+                Default::default(),
+                Default::default(),
+            ],
 
             // If the stack is empty, return an empty slice
             [] => Default::default(),
@@ -204,55 +220,62 @@ mod test {
     }
 
     #[test]
-    pub fn test_fetch_last_2_layers() {
+    pub fn test_fetch_last_3_layers() {
         let mut stack = LayerStack::<u8, u8>::with_capacity(0, 0);
 
         // Test empty stack
-        let (first, second) = stack.fetch_last_2_layers();
-        assert_eq!(first.len(), 0);
-        assert_eq!(second.len(), 0);
+        let [cur, last, parent] = stack.fetch_last_3_layers();
+        assert_eq!(cur.len(), 0);
+        assert_eq!(last.len(), 0);
+        assert_eq!(parent.len(), 0);
         assert_eq!(stack.get_layers_word(), "");
 
         // Test one element
         stack.push_layer(Some('c'), 5);
-        let (first, second) = stack.fetch_last_2_layers();
-        assert_eq!(first.len(), 5);
-        assert_eq!(second.len(), 0);
+        let [cur, last, parent] = stack.fetch_last_3_layers();
+        assert_eq!(cur.len(), 5);
+        assert_eq!(last.len(), 0);
+        assert_eq!(parent.len(), 0);
         assert_eq!(stack.get_layers_word(), "c");
 
         // Test two elements
         stack.push_layer(Some('a'), 10);
-        let (first, second) = stack.fetch_last_2_layers();
-        assert_eq!(first.len(), 10);
-        assert_eq!(second.len(), 5);
+        let [cur, last, parent] = stack.fetch_last_3_layers();
+        assert_eq!(cur.len(), 10);
+        assert_eq!(last.len(), 5);
+        assert_eq!(parent.len(), 0);
         assert_eq!(stack.get_layers_word(), "ca");
 
         // Test three elements
         stack.push_layer(Some('r'), 1);
-        let (first, second) = stack.fetch_last_2_layers();
-        assert_eq!(first.len(), 1);
-        assert_eq!(second.len(), 10);
+        let [cur, last, parent] = stack.fetch_last_3_layers();
+        assert_eq!(cur.len(), 1);
+        assert_eq!(last.len(), 10);
+        assert_eq!(parent.len(), 5);
         assert_eq!(stack.get_layers_word(), "car");
 
         // Pop last (2 elements)
         stack.pop_layer();
-        let (first, second) = stack.fetch_last_2_layers();
-        assert_eq!(first.len(), 10);
-        assert_eq!(second.len(), 5);
+        let [cur, last, parent] = stack.fetch_last_3_layers();
+        assert_eq!(cur.len(), 10);
+        assert_eq!(last.len(), 5);
+        assert_eq!(parent.len(), 0);
         assert_eq!(stack.get_layers_word(), "ca");
 
         // Pop last (1 element)
         stack.pop_layer();
-        let (first, second) = stack.fetch_last_2_layers();
-        assert_eq!(first.len(), 5);
-        assert_eq!(second.len(), 0);
+        let [cur, last, parent] = stack.fetch_last_3_layers();
+        assert_eq!(cur.len(), 5);
+        assert_eq!(last.len(), 0);
+        assert_eq!(parent.len(), 0);
         assert_eq!(stack.get_layers_word(), "c");
 
         // Pop last (empty)
         stack.pop_layer();
-        let (first, second) = stack.fetch_last_2_layers();
-        assert_eq!(first.len(), 0);
-        assert_eq!(second.len(), 0);
+        let [cur, last, parent] = stack.fetch_last_3_layers();
+        assert_eq!(cur.len(), 0);
+        assert_eq!(last.len(), 0);
+        assert_eq!(parent.len(), 0);
         assert_eq!(stack.get_layers_word(), "");
     }
 }

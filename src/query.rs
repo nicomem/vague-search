@@ -1,7 +1,7 @@
 use crate::{
     error::*,
     layer_stack::LayerStack,
-    search_approx::{search_approx, Distance, FoundWord, IterationStack, WordSize},
+    search_approx::{search_approx, Distance, FoundWord, IterationStack, WordCharCount},
     search_exact::search_exact,
 };
 use snafu::*;
@@ -82,7 +82,7 @@ fn process_search_approx<'a>(
     trie: &'a CompiledTrie,
     word: &str,
     distance: Distance,
-    layer_stack: &mut LayerStack<Distance, WordSize>,
+    layer_stack: &mut LayerStack<Distance, WordCharCount>,
     iter_stack: &mut IterationStack<'a>,
     result_buffer: &mut Vec<FoundWord>,
     mut json_buffer: String,
