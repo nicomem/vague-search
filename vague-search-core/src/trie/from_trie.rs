@@ -275,16 +275,20 @@ fn create_partial_node<N: TrieNodeDrainer>(
 
 /// Find the first index >= at the current which is a dummy node
 /// (see the add_range function)
-fn find_next_dummy_range_node(
-    trie_ranges: &[RangeElement],
-    mut current_range_index: usize,
-) -> usize {
-    // Since the range does not end with a not present element,
-    // the loop does not out-of-bounds.
-    while trie_ranges[current_range_index].index_first_child.is_none() {
-        current_range_index += 1;
-    }
-    current_range_index
+fn find_next_dummy_range_node(trie_ranges: &[RangeElement], current_range_index: usize) -> usize {
+    // Find the position (after current index) of the first Some element
+    let pos_opt = trie_ranges
+        .iter()
+        .skip(current_range_index)
+        .position(|n| n.index_first_child.is_some());
+
+    debug_assert_ne!(pos_opt, None);
+    // SAFETY: The range does not end with a None element, so the option should always be Some
+    let pos = pos_opt.unwrap_or_else(|| unsafe { std::hint::unreachable_unchecked() });
+
+    // Add the found position to the current index
+    // Because the found position is based on the current index
+    current_range_index + pos
 }
 
 /// Finish the current partial node and advance the current indices.
