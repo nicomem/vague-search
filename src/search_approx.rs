@@ -91,10 +91,11 @@ fn compute_layer(
     last_layer: &[Distance],
     parent_layer: &[Distance],
     word: &str,
-    iter_elem: &IterationElement,
+    last_char: Option<char>,
     cur_trie_char: char,
 ) {
-    debug_assert_ne!(layer.len(), 0);
+    debug_assert_ne!(word, "");
+    debug_assert_eq!(layer.len(), word.chars().count() + 1);
     debug_assert_eq!(last_layer.len(), layer.len());
 
     let mut word_chars = word.chars();
@@ -104,19 +105,19 @@ fn compute_layer(
     for i in 1..layer.len() {
         // Retrieve the current character
         let cur_word_char = word_chars.next().unwrap();
-        let same_character = cur_word_char == cur_trie_char;
+        let diff_character = cur_word_char != cur_trie_char;
 
         // Compute the costs for insert/delete/replace
         let insert_cost = layer[i - 1] + 1;
         let delete_cost = last_layer[i] + 1;
-        let replace_cost = last_layer[i - 1] + same_character as Distance;
+        let replace_cost = last_layer[i - 1] + diff_character as Distance;
 
         // Compute transposition cost
         let trans_cost = match (
             parent_layer.is_empty(),
             prev_word_char_opt,
             cur_word_char,
-            iter_elem.last_char,
+            last_char,
             cur_trie_char,
         ) {
             // Check if transposing the 2 chars of one substring == the other
@@ -159,7 +160,7 @@ fn push_layers_naive(
         last_layer,
         parent_layer,
         word,
-        iter_elem,
+        iter_elem.last_char,
         node.character,
     );
 }
@@ -188,7 +189,14 @@ fn push_layers_patricia(
         let [cur_layer, last_layer, parent_layer] = layer_stack.fetch_last_3_layers();
 
         // Compute the distances and fill the layer with them
-        compute_layer(cur_layer, last_layer, parent_layer, word, iter_elem, ch);
+        compute_layer(
+            cur_layer,
+            last_layer,
+            parent_layer,
+            word,
+            iter_elem.last_char,
+            ch,
+        );
 
         // Append a dummy node to indicate the end of the layer (character)
         push_layer_nodes(iter_stack, &[]);
@@ -222,7 +230,7 @@ fn push_layers_range(
         last_layer,
         parent_layer,
         word,
-        iter_elem,
+        iter_elem.last_char,
         cur_trie_char,
     );
 }
@@ -395,4 +403,45 @@ pub fn search_approx<'a>(
 
     // Return the result buffer that has been filled in the stack loop
     result_buffer
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_compute_layer_one_layer_same_char() {
+        let word = "abaca";
+        let mut layer = [0; 6];
+        let last_layer = [0, 1, 2, 3, 4, 5];
+        let parent_layer = [];
+        let last_char = None;
+
+        compute_layer(&mut layer, &last_layer, &parent_layer, word, last_char, 'a');
+        debug_assert_eq!(layer, [1, 0, 1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn test_compute_layer_one_layer_same_not_first_char() {
+        let word = "abaca";
+        let mut layer = [0; 6];
+        let last_layer = [0, 1, 2, 3, 4, 5];
+        let parent_layer = [];
+        let last_char = None;
+
+        compute_layer(&mut layer, &last_layer, &parent_layer, word, last_char, 'c');
+        debug_assert_eq!(layer, [1, 1, 2, 3, 3, 4]);
+    }
+
+    #[test]
+    fn test_compute_layer_one_layer_same_diff_char() {
+        let word = "abaca";
+        let mut layer = [0; 6];
+        let last_layer = [0, 1, 2, 3, 4, 5];
+        let parent_layer = [];
+        let last_char = None;
+
+        compute_layer(&mut layer, &last_layer, &parent_layer, word, last_char, 'f');
+        debug_assert_eq!(layer, [1, 1, 2, 3, 4, 5]);
+    }
 }
