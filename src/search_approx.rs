@@ -1,7 +1,7 @@
 use crate::layer_stack::LayerStack;
 use std::{cmp::min, num::NonZeroU32};
 use vague_search_core::{
-    CompiledTrie, CompiledTrieNode, NaiveNode, NodeValue, PatriciaNode, RangeNode,
+    CompiledTrie, CompiledTrieNode, NaiveNode, NodeValue, PatriciaNode, RangeNode, RangeElement
 };
 
 /// A type to store searching distances.
@@ -207,12 +207,28 @@ fn push_layers_patricia(
     debug_assert!(matches!(popped_node, Some(None)));
 }
 
-fn push_layers_range(
+/// Find the first index >= at the current which is a dummy node
+/// (see the add_range function)
+fn find_next_range_node(trie_ranges: &[RangeElement], current_range_index: usize) -> Option<usize> {
+    // Find the position (after current index) of the first Some element
+    let pos_opt = trie_ranges
+        .iter()
+        .skip(current_range_index)
+        .position(|n| n.index_first_child.is_some())?;
+
+    // Add the found position to the current index
+    // Because the found position is based on the current index
+    Some(current_range_index + pos_opt)
+}
+
+fn push_layers_range<'a>(
     node: &RangeNode,
-    iter_elem: &IterationElement,
+    iter_elem: &IterationElement <'a>,
     word: &str,
     word_char_count: WordCharCount,
     layer_stack: &mut LayerStack<Distance, WordCharCount>,
+    iter_stack: &mut IterationStack<'a>,
+    trie: &CompiledTrie,
 ) {
     // SAFETY: Safety checked during dictionary compilation
     let cur_trie_char =
@@ -233,16 +249,28 @@ fn push_layers_range(
         iter_elem.last_char,
         cur_trie_char,
     );
+
+    // Push the following up range with an incremented range offset
+    // BIG BIG FIXME
+    if let Some(x) = find_next_range_node(trie.get_range(node.start_index, node.end_index), iter_elem.range_offset as usize) {
+        iter_stack.push(Some(IterationElement {
+            node: iter_elem.node,
+            last_char: iter_elem.last_char,
+            range_offset: x as u32,
+        }));
+    }
+    // FIXME
+
 }
 
 /// Process the current node and update the layer stack with the node's new layers.
-fn push_layers_current_node(
-    iter_elem: &IterationElement,
+fn push_layers_current_node<'a>(
+    iter_elem: &IterationElement <'a>,
     word: &str,
     word_char_count: WordCharCount,
     trie: &CompiledTrie,
     layer_stack: &mut LayerStack<Distance, WordCharCount>,
-    iter_stack: &mut IterationStack<'_>,
+    iter_stack: &mut IterationStack<'a>,
 ) {
     match iter_elem.node.node_value() {
         NodeValue::Naive(n) => push_layers_naive(n, iter_elem, word, word_char_count, layer_stack),
@@ -255,7 +283,7 @@ fn push_layers_current_node(
             iter_stack,
             trie,
         ),
-        NodeValue::Range(n) => push_layers_range(n, iter_elem, word, word_char_count, layer_stack),
+        NodeValue::Range(n) => push_layers_range(n, iter_elem, word, word_char_count, layer_stack, iter_stack, trie),
     }
 }
 
