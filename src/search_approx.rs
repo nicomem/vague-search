@@ -54,6 +54,7 @@ impl Ord for FoundWord {
 }
 
 /// Retrieve and push the root nodes in the iteration stack.
+/// Also push a dummy node (None) as the first element to indicate the end of the layer.
 fn push_layer_nodes<'a>(iter_stack: &mut IterationStack<'a>, nodes: &'a [CompiledTrieNode]) {
     iter_stack.reserve(nodes.len() + 1);
 
@@ -146,9 +147,13 @@ fn push_layers_naive(
     word_char_count: WordCharCount,
     layer_stack: &mut LayerStack<Distance, WordCharCount>,
 ) {
+    // Create a new empty layer
     layer_stack.push_layer(Some(node.character), word_char_count + 1);
+
+    // Get the last 3 layers needed for the distance computation
     let [cur_layer, last_layer, parent_layer] = layer_stack.fetch_last_3_layers();
 
+    // Compute the distances and fill the layer with them
     compute_layer(
         cur_layer,
         last_layer,
@@ -160,24 +165,38 @@ fn push_layers_naive(
 }
 
 fn push_layers_patricia(
-    node: &PatriciaNode,
+    _node: &PatriciaNode,
     iter_elem: &IterationElement,
     word: &str,
     word_char_count: WordCharCount,
     layer_stack: &mut LayerStack<Distance, WordCharCount>,
+    iter_stack: &mut IterationStack<'_>,
     trie: &CompiledTrie,
 ) {
+    // Retrieve the patricia characters
     // SAFETY: Safe because in a patricia node
     let range_chars = unsafe { iter_elem.node.patricia_range() };
     let pat_chars = trie.get_chars(range_chars.start, range_chars.end);
 
+    // Do the same computation as a naive node for each character in the patricia node
+    // It will create a new layer for each character, which is not the most performant but the easiest
     for ch in pat_chars.chars() {
-        let layer = layer_stack.push_layer(Some(ch), word_char_count + 1);
-        todo!(
-            "Should be like naive but with looping through the pat characters
-            & adding dummy nodes to the other stack between characters"
-        )
+        // Create a new empty layer
+        layer_stack.push_layer(Some(ch), word_char_count + 1);
+
+        // Get the last 3 layers needed for the distance computation
+        let [cur_layer, last_layer, parent_layer] = layer_stack.fetch_last_3_layers();
+
+        // Compute the distances and fill the layer with them
+        compute_layer(cur_layer, last_layer, parent_layer, word, iter_elem, ch);
+
+        // Append a dummy node to indicate the end of the layer (character)
+        push_layer_nodes(iter_stack, &[]);
     }
+
+    // Remove the last dummy node since the last character is handled in the main parent loop
+    let popped_node = iter_stack.pop();
+    debug_assert!(matches!(popped_node, Some(None)));
 }
 
 fn push_layers_range(
@@ -188,11 +207,24 @@ fn push_layers_range(
     layer_stack: &mut LayerStack<Distance, WordCharCount>,
 ) {
     // SAFETY: Safety checked during dictionary compilation
-    let character =
+    let cur_trie_char =
         unsafe { std::char::from_u32_unchecked(node.first_char as u32 + iter_elem.range_offset) };
-    let layer = layer_stack.push_layer(Some(character), word_char_count + 1);
 
-    todo!()
+    // Create a new empty layer
+    layer_stack.push_layer(Some(cur_trie_char), word_char_count + 1);
+
+    // Get the last 3 layers needed for the distance computation
+    let [cur_layer, last_layer, parent_layer] = layer_stack.fetch_last_3_layers();
+
+    // Compute the distances and fill the layer with them
+    compute_layer(
+        cur_layer,
+        last_layer,
+        parent_layer,
+        word,
+        iter_elem,
+        cur_trie_char,
+    );
 }
 
 /// Process the current node and update the layer stack with the node's new layers.
@@ -202,12 +234,19 @@ fn push_layers_current_node(
     word_char_count: WordCharCount,
     trie: &CompiledTrie,
     layer_stack: &mut LayerStack<Distance, WordCharCount>,
+    iter_stack: &mut IterationStack<'_>,
 ) {
     match iter_elem.node.node_value() {
         NodeValue::Naive(n) => push_layers_naive(n, iter_elem, word, word_char_count, layer_stack),
-        NodeValue::Patricia(n) => {
-            push_layers_patricia(n, iter_elem, word, word_char_count, layer_stack, trie)
-        }
+        NodeValue::Patricia(n) => push_layers_patricia(
+            n,
+            iter_elem,
+            word,
+            word_char_count,
+            layer_stack,
+            iter_stack,
+            trie,
+        ),
         NodeValue::Range(n) => push_layers_range(n, iter_elem, word, word_char_count, layer_stack),
     }
 }
@@ -315,7 +354,14 @@ pub fn search_approx<'a>(
         };
 
         // Compute and push the distance layers of the current node
-        push_layers_current_node(&iter_elem, word, word_char_count as _, trie, layer_stack);
+        push_layers_current_node(
+            &iter_elem,
+            word,
+            word_char_count as _,
+            trie,
+            layer_stack,
+            iter_stack,
+        );
 
         // SAFETY: The layer stack is not empty at this point
         let cur_layer = layer_stack
@@ -350,141 +396,3 @@ pub fn search_approx<'a>(
     // Return the result buffer that has been filled in the stack loop
     result_buffer
 }
-
-/// Levenshtein updating of matrices lines
-fn update_line(new_line: &mut [u16], parent_line: &[u16], same_letters: bool) {
-    for i in 1..new_line.len() {
-        let insert_cost = new_line[i - 1] + 1;
-        let delete_cost = parent_line[i];
-        let replace_cost = parent_line[i] + (same_letters as u16);
-
-        // TODO: Compute Damerau substitution cost
-        let subst_cost = u16::MAX;
-        new_line[i] = min(min(insert_cost, delete_cost), min(replace_cost, subst_cost));
-    }
-}
-
-/// Returns the current distance taking only tested letters
-/// FIXME: Maybe add len checking in the process (word_len >= curr_len)
-fn current_distance(line: &[u16], curr_len: WordCharCount) -> u16 {
-    line[curr_len as usize]
-}
-
-/// Returns the best distance taking into account the whole words
-/// FIXME: Maybe add len checking in the process
-fn full_distance(line: &[u16], word_len: WordCharCount) -> u16 {
-    line[word_len as usize]
-}
-
-// // Keep track of current recursive word length in trie
-// let trie_sizes_stack: Vec<u16> = Vec::new();
-// // First row begins by 0
-// trie_sizes_stack.push(0);
-
-// let root_line = init_array(word.len() + 1);
-// for root in roots {
-//     iter_stack.push(Some(*root));
-//     loop {
-//         let compiled_node_option = match iter_stack.pop() {
-//             Some(r) => r,
-//             None => break,
-//         };
-
-//         // If layer found: continue
-//         // Else loop is over
-//         let compiled_node = match compiled_node_option {
-//             Some(node) => node,
-//             None => {
-//                 if !layer_stack.pop_layer() || trie_sizes_stack.pop().is_none() {
-//                     break;
-//                 }
-//                 continue;
-//             }
-//         };
-
-//         // Fetch lines
-//         let parent_line = layer_stack.fetch_layer().unwrap();
-//         let current_length = trie_sizes_stack.last().unwrap();
-//         let new_line = layer_stack.push_layer(word.len() as WordSize + 1);
-
-//         // Compute line
-//         match compiled_node.node_value() {
-//             NodeValue::Naive(node) => {
-//                 // init first index with current length
-//                 new_line[0] = *current_length;
-//                 // potential FIXME
-//                 update_line(
-//                     new_line,
-//                     parent_line,
-//                     node.character == word.chars().next().unwrap(),
-//                 );
-
-//                 if let Some(index) = node.index_first_child {
-//                     iter_stack.push(None);
-//                     for child in trie.get_siblings(index).iter().rev() {
-//                         // Push children
-//                         iter_stack.push(Some(*child));
-//                     }
-//                 }
-//             }
-//             NodeValue::Patricia(node) => {
-//                 let chars_it = trie
-//                     // SAFETY: Safe because in a patricia node
-//                     .get_chars(unsafe { &compiled_node.patricia_range() })
-//                     .chars();
-//                 let word_it = word.chars();
-
-//                 // Calculate and update lines
-//                 // Also update curr_length
-//                 // The length will allow to check if one of the word ended first
-//                 let length: WordSize = 0;
-//                 // FIXME abort if current distance greater than minimum distance
-//                 loop {
-//                     let node_char = chars_it.next();
-//                     let word_char = word_it.next();
-
-//                     // Word finished before patricia finished
-//                     // This wasn't a potential node
-//                     if node_char.is_some() && word_char.is_none() {
-//                         return None; // TODO: Don't return but continue queue
-//                     }
-
-//                     if node_char.is_none() || word_char.is_none() {
-//                         break;
-//                     }
-
-//                     new_line[0] = *current_length;
-//                     update_line(
-//                         new_line,
-//                         parent_line,
-//                         node_char.unwrap() == word_char.unwrap(),
-//                     );
-//                     // Copy from NodeLine (equivalent to clone), sizes are assured to be the same
-//                     // Allows to reuse parent_line for next iteration and node_line calculation
-//                     parent_line.copy_from_slice(new_line);
-//                     length += 1;
-//                 }
-//                 if word.len() == (current_length + length) as usize && node.word_freq.is_some()
-//                 {
-//                     result_buffer.push(FoundWord {
-//                         word: String::new(),
-//                         freq: node.word_freq.unwrap(),
-//                         dist: 0,
-//                     })
-//                 }
-
-//                 if let Some(index) = node.index_first_child {
-//                     iter_stack.push(None);
-//                     for child in trie.get_siblings(index).iter().rev() {
-//                         iter_stack.push(Some(*child));
-//                     }
-//                 }
-//             }
-//             NodeValue::Range(node) => {
-//                 let ranges = trie.get_range(&(node.start_index..node.end_index));
-//             }
-//         }
-
-//         // Find children
-//     }
-// }

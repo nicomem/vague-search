@@ -12,7 +12,6 @@
 //! documentation about types and functions shared by the binaries.
 
 use error::*;
-use search_exact::search_exact;
 use snafu::*;
 use std::path::PathBuf;
 use vague_search_core::DictionaryFile;
@@ -59,16 +58,6 @@ fn main() -> Result<()> {
 
     eprintln!("Listening for queries in stdin...");
     query::process_stdin_queries(&dict_file.trie)?;
-
-    // TODO: Do the app
-    dbg!(dict_file.trie.get_root_siblings().unwrap());
-
-    dbg!(search_exact(&dict_file.trie, "ala", None));
-    dbg!(search_exact(
-        &dict_file.trie,
-        "depannagevideo_galaxy_93130_noisy",
-        None
-    ));
 
     Ok(())
 }
