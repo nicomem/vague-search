@@ -12,7 +12,7 @@ macro_rules! index_wrappers {
         $(
             /// Represent a valid index in the [CompiledTrie](crate::CompiledTrie) corresponding array.
             /// **UB Warning:** This index must not be used on another trie than the one that provided it.
-            #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+            #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
             pub struct $index {
                 index: u32,
             }
@@ -58,6 +58,12 @@ macro_rules! derive_from {
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct IndexNodeNonZero {
     index: NonZeroU32,
+}
+
+impl IndexNodeNonZero {
+    pub(super) fn new_opt(index: u32) -> Option<Self> {
+        NonZeroU32::new(index).map(Self::new)
+    }
 }
 
 index_wrappers!(IndexChar, IndexRange);

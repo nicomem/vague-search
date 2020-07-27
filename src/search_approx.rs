@@ -169,7 +169,7 @@ fn push_layers_patricia(
 ) {
     // SAFETY: Safe because in a patricia node
     let range_chars = unsafe { iter_elem.node.patricia_range() };
-    let pat_chars = trie.get_chars(&range_chars);
+    let pat_chars = trie.get_chars(range_chars.start, range_chars.end);
 
     for ch in pat_chars.chars() {
         let layer = layer_stack.push_layer(Some(ch), word_char_count + 1);
@@ -218,8 +218,7 @@ fn get_node_frequency(iter_elem: &IterationElement, trie: &CompiledTrie) -> Opti
         NodeValue::Naive(n) => n.word_freq,
         NodeValue::Patricia(n) => n.word_freq,
         NodeValue::Range(n) => {
-            let range = n.start_index..n.end_index;
-            let slice = trie.get_range(&range);
+            let slice = trie.get_range(n.start_index, n.end_index);
             let elem = &slice[iter_elem.range_offset as usize];
             elem.word_freq
         }
@@ -266,8 +265,7 @@ fn get_node_children<'a>(
         NodeValue::Naive(n) => n.index_first_child,
         NodeValue::Patricia(n) => n.index_first_child,
         NodeValue::Range(n) => {
-            let range = n.start_index..n.end_index;
-            let slice = trie.get_range(&range);
+            let slice = trie.get_range(n.start_index, n.end_index);
             let elem = &slice[iter_elem.range_offset as usize];
             elem.index_first_child
         }

@@ -1,6 +1,6 @@
 use super::index::*;
 use crate::{CompiledTrieNode, RangeElement};
-use std::{borrow::Cow, ops::Range};
+use std::borrow::Cow;
 
 /// Represent the node array of the [CompiledTrie](crate::CompiledTrie)
 pub type NodeSlice = [CompiledTrieNode];
@@ -51,6 +51,7 @@ impl CompiledTrie<'_> {
         if self.nodes().is_empty() {
             None
         } else {
+            // SAFETY: Not empty, condition checked just before
             unsafe { Some(self.get_siblings_unchecked(0)) }
         }
     }
@@ -74,20 +75,30 @@ impl CompiledTrie<'_> {
     }
 
     /// Get a range of characters of a [PatriciaNode](crate::PatriciaNode).
-    pub fn get_chars(&self, range: &Range<IndexChar>) -> &CharsSlice {
-        // SAFETY: IndexChar is valid because it cannot be created by the user.
-        unsafe {
-            self.chars
-                .get_unchecked(usize::from(range.start)..usize::from(range.end))
+    pub fn get_chars(&self, start: IndexChar, end: IndexChar) -> &CharsSlice {
+        if start >= end {
+            Default::default()
+        } else {
+            // SAFETY: IndexChar is valid because it cannot be created by the user.
+            // SAFETY: start < end so the range is not out-of-bound.
+            unsafe {
+                self.chars
+                    .get_unchecked(usize::from(start)..usize::from(end))
+            }
         }
     }
 
     /// Get a range of nodes corresponding to a [RangeNode](crate::RangeNode).
-    pub fn get_range(&self, range: &Range<IndexRange>) -> &RangeSlice {
-        // SAFETY: IndexRange is valid because it cannot be created by the user.
-        unsafe {
-            self.ranges
-                .get_unchecked(usize::from(range.start)..usize::from(range.end))
+    pub fn get_range(&self, start: IndexRange, end: IndexRange) -> &RangeSlice {
+        if start >= end {
+            Default::default()
+        } else {
+            // SAFETY: IndexRange is valid because it cannot be created by the user.
+            // SAFETY: start < end so the range is not out-of-bound.
+            unsafe {
+                self.ranges
+                    .get_unchecked(usize::from(start)..usize::from(end))
+            }
         }
     }
 }
