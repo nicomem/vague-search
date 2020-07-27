@@ -207,8 +207,8 @@ mod test {
             let layer = layer_opt.unwrap();
             assert_eq!(layer.len(), len);
 
-            for i in 0..len {
-                assert_eq!(layer[i], i);
+            for (i, &e) in layer.iter().enumerate().take(len) {
+                assert_eq!(e, i);
             }
 
             assert_eq!(stack.get_layers_word().chars().count(), len + 1);

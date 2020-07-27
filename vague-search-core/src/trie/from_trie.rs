@@ -422,6 +422,9 @@ impl<N: TrieNodeDrainer> From<N> for CompiledTrie<'_> {
 
 #[cfg(test)]
 mod test {
+    // Allow 0-width spaces since they are tested
+    #![allow(clippy::zero_width_space)]
+
     use super::*;
     use std::num::NonZeroU32;
 
@@ -463,7 +466,7 @@ mod test {
     }
 
     fn run_assert_heuristic(
-        nodes: &Vec<NodeDrainer>,
+        nodes: &[NodeDrainer],
         nodes_chars: Vec<String>,
         target: Vec<TrieNode<NodeDrainer>>,
     ) {
@@ -531,7 +534,7 @@ mod test {
 
         let nodes = chars
             .iter()
-            .map(|&c| c)
+            .copied()
             .map(|c| create_simple(c, 0, vec![]))
             .collect();
 

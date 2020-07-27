@@ -130,7 +130,7 @@ fn compute_layer(
 
             // If not, we cannot transpose and so return the max value to
             // make the min take one of the other costs
-            _ => u16::MAX,
+            _ => Distance::MAX,
         };
 
         // Set the current cell value to the minimum of all costs
@@ -394,11 +394,10 @@ pub fn search_approx<'a>(
         // remove its layer and continue with next iteration
         if children.is_empty() || !any_below_max_dist(cur_layer, dist_max) {
             layer_stack.pop_layer();
-            continue;
+        } else {
+            // Add all children to the stack
+            push_layer_nodes(iter_stack, children);
         }
-
-        // Add all children to the stack
-        push_layer_nodes(iter_stack, children);
     }
 
     // Return the result buffer that has been filled in the stack loop
@@ -409,39 +408,107 @@ pub fn search_approx<'a>(
 mod test {
     use super::*;
 
+    fn check_compute_layer_word(word: &str, trie_word: &str, target_layers: &[&[Distance]]) {
+        let layer_len = word.chars().count() + 1;
+
+        assert_eq!(target_layers.len(), trie_word.chars().count());
+
+        let mut layer = vec![0; layer_len];
+        let mut last_layer: Vec<_> = ((0 as Distance)..(layer_len as Distance)).collect();
+        let mut parent_layer = vec![];
+        let mut last_char = None;
+
+        for (ch, target_layer) in trie_word.chars().zip(target_layers) {
+            compute_layer(&mut layer, &last_layer, &parent_layer, word, last_char, ch);
+            assert_eq!(&layer, target_layer);
+
+            parent_layer = last_layer;
+            last_layer = layer;
+            layer = vec![0; layer_len];
+            last_char = Some(ch);
+        }
+    }
+
     #[test]
     fn test_compute_layer_one_layer_same_char() {
         let word = "abaca";
-        let mut layer = [0; 6];
-        let last_layer = [0, 1, 2, 3, 4, 5];
-        let parent_layer = [];
-        let last_char = None;
-
-        compute_layer(&mut layer, &last_layer, &parent_layer, word, last_char, 'a');
-        debug_assert_eq!(layer, [1, 0, 1, 2, 3, 4]);
+        let trie_word = "a";
+        let target_layers = [[1, 0, 1, 2, 3, 4].as_ref()];
+        check_compute_layer_word(word, trie_word, &target_layers);
     }
 
     #[test]
     fn test_compute_layer_one_layer_same_not_first_char() {
         let word = "abaca";
-        let mut layer = [0; 6];
-        let last_layer = [0, 1, 2, 3, 4, 5];
-        let parent_layer = [];
-        let last_char = None;
-
-        compute_layer(&mut layer, &last_layer, &parent_layer, word, last_char, 'c');
-        debug_assert_eq!(layer, [1, 1, 2, 3, 3, 4]);
+        let trie_word = "c";
+        let target_layers = [[1, 1, 2, 3, 3, 4].as_ref()];
+        check_compute_layer_word(word, trie_word, &target_layers);
     }
 
     #[test]
     fn test_compute_layer_one_layer_same_diff_char() {
         let word = "abaca";
-        let mut layer = [0; 6];
-        let last_layer = [0, 1, 2, 3, 4, 5];
-        let parent_layer = [];
-        let last_char = None;
+        let trie_word = "f";
+        let target_layers = [[1, 1, 2, 3, 4, 5].as_ref()];
+        check_compute_layer_word(word, trie_word, &target_layers);
+    }
 
-        compute_layer(&mut layer, &last_layer, &parent_layer, word, last_char, 'f');
-        debug_assert_eq!(layer, [1, 1, 2, 3, 4, 5]);
+    #[test]
+    fn test_compute_layer_kries_crise() {
+        let word = "kries";
+        let trie_word = "crise";
+        let target_layers = [
+            [1, 1, 2, 3, 4, 5].as_ref(),
+            [2, 2, 1, 2, 3, 4].as_ref(),
+            [3, 3, 2, 1, 2, 3].as_ref(),
+            [4, 4, 3, 2, 2, 2].as_ref(),
+            [5, 5, 4, 3, 2, 2].as_ref(),
+        ];
+        check_compute_layer_word(word, trie_word, &target_layers);
+    }
+
+    #[test]
+    fn test_compute_layer_abaca_alabama() {
+        let word = "abaca";
+        let trie_word = "alabama";
+        let target_layers = [
+            [1, 0, 1, 2, 3, 4].as_ref(),
+            [2, 1, 1, 2, 3, 4].as_ref(),
+            [3, 2, 2, 1, 2, 3].as_ref(),
+            [4, 3, 2, 2, 2, 3].as_ref(),
+            [5, 4, 3, 2, 3, 2].as_ref(),
+            [6, 5, 4, 3, 3, 3].as_ref(),
+            [7, 6, 5, 4, 4, 3].as_ref(),
+        ];
+        check_compute_layer_word(word, trie_word, &target_layers);
+    }
+
+    #[test]
+    fn test_compute_layer_alabama_abaca() {
+        let word = "alabama";
+        let trie_word = "abaca";
+        let target_layers = [
+            [1, 0, 1, 2, 3, 4, 5, 6].as_ref(),
+            [2, 1, 1, 2, 2, 3, 4, 5].as_ref(),
+            [3, 2, 2, 1, 2, 2, 3, 4].as_ref(),
+            [4, 3, 3, 2, 2, 3, 3, 4].as_ref(),
+            [5, 4, 4, 3, 3, 2, 3, 3].as_ref(),
+        ];
+        check_compute_layer_word(word, trie_word, &target_layers);
+    }
+
+    #[test]
+    fn test_compute_layer_abcdef_badcfe() {
+        let word = "abcdef";
+        let trie_word = "badcfe";
+        let target_layers = [
+            [1, 1, 1, 2, 3, 4, 5].as_ref(),
+            [2, 1, 1, 2, 3, 4, 5].as_ref(),
+            [3, 2, 2, 2, 2, 3, 4].as_ref(),
+            [4, 3, 3, 2, 2, 3, 4].as_ref(),
+            [5, 4, 4, 3, 3, 3, 3].as_ref(),
+            [6, 5, 5, 4, 4, 3, 3].as_ref(),
+        ];
+        check_compute_layer_word(word, trie_word, &target_layers);
     }
 }

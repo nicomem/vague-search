@@ -2,9 +2,9 @@ name: Rust
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,12 +13,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Check Rustfmt
-      run: cargo fmt -- --check
-    - name: Run Clippy
-      run: cargo clippy --workspace -- -D warnings
-    - name: Run tests
-      run: cargo test --workspace
-    - name: Check Windows compatibility
-      run: RUSTFLAGS='--cfg windows' cargo check --workspace
+      - uses: actions/checkout@v2
+      - name: Check Rustfmt
+        run: cargo fmt -- --check
+      - name: Run Clippy
+        run: cargo clippy -Z unstable-options --all-targets --all-features --workspace -- -D warnings
+      - name: Run tests
+        run: cargo test --workspace
+      - name: Check Windows compatibility
+        run: RUSTFLAGS='--cfg windows' cargo check --workspace
