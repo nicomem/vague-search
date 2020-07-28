@@ -145,7 +145,7 @@ impl DictionaryFile<'_> {
         let (mmap_ptr, read_bytes) = {
             use std::io::Read;
 
-            let mut buf = Vec::with_capacity(file_len);
+            let mut buf = vec![0; file_len];
             file.read_exact(&mut buf).context(FileRead { path })?;
 
             (buf.as_ptr() as *mut c_void, buf)
