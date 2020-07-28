@@ -1,12 +1,12 @@
-# Folders: 
+# Folders:
 /target
 /.vscode
 
 # Files:
 *.bin
 *.svg
+*.txt
 TextMiningApp
 TextMiningCompiler
 massif.out.*
 perf.data*
-words.txt

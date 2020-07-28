@@ -275,16 +275,20 @@ fn create_partial_node<N: TrieNodeDrainer>(
 
 /// Find the first index >= at the current which is a dummy node
 /// (see the add_range function)
-fn find_next_dummy_range_node(
-    trie_ranges: &[RangeElement],
-    mut current_range_index: usize,
-) -> usize {
-    // Since the range does not end with a not present element,
-    // the loop does not out-of-bounds.
-    while trie_ranges[current_range_index].index_first_child.is_none() {
-        current_range_index += 1;
-    }
-    current_range_index
+fn find_next_dummy_range_node(trie_ranges: &[RangeElement], current_range_index: usize) -> usize {
+    // Find the position (after current index) of the first Some element
+    let pos_opt = trie_ranges
+        .iter()
+        .skip(current_range_index)
+        .position(|n| n.index_first_child.is_some());
+
+    debug_assert_ne!(pos_opt, None);
+    // SAFETY: The range does not end with a None element, so the option should always be Some
+    let pos = pos_opt.unwrap_or_else(|| unsafe { std::hint::unreachable_unchecked() });
+
+    // Add the found position to the current index
+    // Because the found position is based on the current index
+    current_range_index + pos
 }
 
 /// Finish the current partial node and advance the current indices.
@@ -380,7 +384,7 @@ fn fill_from_trie<N: TrieNodeDrainer>(
             None
         } else {
             // The first child will be placed at the next index in the nodes vector
-            NonZeroU32::new(nb_nodes_before as _).map(IndexNodeNonZero::new)
+            IndexNodeNonZero::new_opt(nb_nodes_before as _)
         };
 
         // Finish the current partial node
@@ -418,6 +422,9 @@ impl<N: TrieNodeDrainer> From<N> for CompiledTrie<'_> {
 
 #[cfg(test)]
 mod test {
+    // Allow 0-width spaces since they are tested
+    #![allow(clippy::zero_width_space)]
+
     use super::*;
     use std::num::NonZeroU32;
 
@@ -459,7 +466,7 @@ mod test {
     }
 
     fn run_assert_heuristic(
-        nodes: &Vec<NodeDrainer>,
+        nodes: &[NodeDrainer],
         nodes_chars: Vec<String>,
         target: Vec<TrieNode<NodeDrainer>>,
     ) {
@@ -527,7 +534,7 @@ mod test {
 
         let nodes = chars
             .iter()
-            .map(|&c| c)
+            .copied()
             .map(|c| create_simple(c, 0, vec![]))
             .collect();
 
@@ -670,7 +677,7 @@ mod test {
         let target_nodes = vec![
             CompiledTrieNode::new_naive(
                 NaiveNode {
-                    index_first_child: NonZeroU32::new(3).map(IndexNodeNonZero::new),
+                    index_first_child: IndexNodeNonZero::new_opt(3),
                     word_freq: NonZeroU32::new(1),
                     character: 'a',
                 },
@@ -678,7 +685,7 @@ mod test {
             ),
             CompiledTrieNode::new_naive(
                 NaiveNode {
-                    index_first_child: NonZeroU32::new(5).map(IndexNodeNonZero::new),
+                    index_first_child: IndexNodeNonZero::new_opt(5),
                     word_freq: None,
                     character: 'h',
                 },
@@ -743,7 +750,7 @@ mod test {
         let target_nodes = vec![
             CompiledTrieNode::new_patricia(
                 PatriciaNode {
-                    index_first_child: NonZeroU32::new(3).map(IndexNodeNonZero::new),
+                    index_first_child: IndexNodeNonZero::new_opt(3),
                     word_freq: NonZeroU32::new(1),
                     start_index: IndexChar::new(0),
                 },
@@ -752,7 +759,7 @@ mod test {
             ),
             CompiledTrieNode::new_patricia(
                 PatriciaNode {
-                    index_first_child: NonZeroU32::new(5).map(IndexNodeNonZero::new),
+                    index_first_child: IndexNodeNonZero::new_opt(5),
                     word_freq: None,
                     start_index: IndexChar::new(3),
                 },
@@ -864,13 +871,13 @@ mod test {
         let target_chars = "";
         let target_ranges = vec![
             RangeElement {
-                index_first_child: NonZeroU32::new(1).map(IndexNodeNonZero::new),
+                index_first_child: IndexNodeNonZero::new_opt(1),
                 word_freq: NonZeroU32::new(1),
             },
             RangeElement::default(),
             RangeElement::default(),
             RangeElement {
-                index_first_child: NonZeroU32::new(2).map(IndexNodeNonZero::new),
+                index_first_child: IndexNodeNonZero::new_opt(2),
                 word_freq: None,
             },
             RangeElement::default(),
@@ -946,7 +953,7 @@ mod test {
         let target_nodes = vec![
             CompiledTrieNode::new_patricia(
                 PatriciaNode {
-                    index_first_child: NonZeroU32::new(2).map(IndexNodeNonZero::new),
+                    index_first_child: IndexNodeNonZero::new_opt(2),
                     word_freq: NonZeroU32::new(1),
                     start_index: IndexChar::new(0),
                 },
@@ -1007,12 +1014,12 @@ mod test {
         let target_chars = ["apata", HE_COMES, RUST_IS_LOVE].concat();
         let target_ranges = vec![
             RangeElement {
-                index_first_child: NonZeroU32::new(3).map(IndexNodeNonZero::new),
+                index_first_child: IndexNodeNonZero::new_opt(3),
                 word_freq: None,
             },
             RangeElement::default(),
             RangeElement {
-                index_first_child: NonZeroU32::new(6).map(IndexNodeNonZero::new),
+                index_first_child: IndexNodeNonZero::new_opt(6),
                 word_freq: NonZeroU32::new(5),
             },
             RangeElement {

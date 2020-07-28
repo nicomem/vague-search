@@ -8,15 +8,17 @@ fn compare_keys(
 ) -> std::cmp::Ordering {
     match trie_node.node_value() {
         NodeValue::Naive(node) => node.character.cmp(&character),
-        NodeValue::Patricia(_) => trie
+        NodeValue::Patricia(_) => {
             // SAFETY: Safe because in a patricia node
-            .get_chars(unsafe { &trie_node.patricia_range() })
-            .chars()
-            .next()
-            .unwrap()
-            .cmp(&character),
+            let pat_range = unsafe { &trie_node.patricia_range() };
+            trie.get_chars(pat_range.start, pat_range.end)
+                .chars()
+                .next()
+                .unwrap()
+                .cmp(&character)
+        }
         NodeValue::Range(node) => {
-            let ranges = trie.get_range(&(node.start_index..node.end_index));
+            let ranges = trie.get_range(node.start_index, node.end_index);
             if node.first_char > character {
                 std::cmp::Ordering::Greater
             } else if node.first_char as usize + ranges.len() < character as usize {
@@ -63,7 +65,7 @@ pub fn search_exact(
             NodeValue::Patricia(node) => {
                 // SAFETY: Safe because in a patricia node
                 let patricia_range = unsafe { child.patricia_range() };
-                let chars = trie.get_chars(&patricia_range);
+                let chars = trie.get_chars(patricia_range.start, patricia_range.end);
                 let lenchar = chars.len();
                 if lenchar > word.len() || !word.starts_with(chars) {
                     return None;
@@ -83,7 +85,7 @@ pub fn search_exact(
             }
             NodeValue::Range(node) => {
                 let range = trie
-                    .get_range(&(node.start_index..node.end_index))
+                    .get_range(node.start_index, node.end_index)
                     .get(first_char as usize - node.first_char as usize)?;
                 if word.len() == first_char.len_utf8() {
                     return range.word_freq;

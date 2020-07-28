@@ -1,7 +1,7 @@
 use crate::{
     error::*,
     layer_stack::LayerStack,
-    search_approx::{search_approx, Distance, FoundWord, IterationStack, WordSize},
+    search_approx::{search_approx, Distance, FoundWord, IterationStack, WordCharCount},
     search_exact::search_exact,
 };
 use snafu::*;
@@ -78,12 +78,12 @@ fn process_search_exact(trie: &CompiledTrie, word: &str, mut json_buffer: Json) 
 
 /// Search for all words in the trie at a given distance (or less) of the query
 /// and return the result in a JSON representation.
-fn process_search_approx(
-    trie: &CompiledTrie,
+fn process_search_approx<'a>(
+    trie: &'a CompiledTrie,
     word: &str,
     distance: Distance,
-    layer_stack: &mut LayerStack<Distance, WordSize>,
-    iter_stack: &mut IterationStack,
+    layer_stack: &mut LayerStack<Distance, WordCharCount>,
+    iter_stack: &mut IterationStack<'a>,
     result_buffer: &mut Vec<FoundWord>,
     mut json_buffer: String,
 ) -> Json {
@@ -102,6 +102,9 @@ fn process_search_approx(
         iter_stack,
         std::mem::take(result_buffer),
     );
+
+    // Sort the results based on the order defined by FoundWord
+    result_buffer.sort_unstable();
 
     json_buffer.push('[');
     for found_word in result_buffer.iter_mut() {

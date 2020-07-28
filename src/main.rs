@@ -12,8 +12,6 @@
 //! documentation about types and functions shared by the binaries.
 
 use error::*;
-use layer_stack::*;
-use search_exact::search_exact;
 use snafu::*;
 use std::path::PathBuf;
 use vague_search_core::DictionaryFile;
@@ -60,24 +58,6 @@ fn main() -> Result<()> {
 
     eprintln!("Listening for queries in stdin...");
     query::process_stdin_queries(&dict_file.trie)?;
-
-    // TODO: Do the app
-    dbg!(dict_file.trie.get_root_siblings().unwrap());
-
-    dbg!(search_exact(&dict_file.trie, "ala", None));
-    dbg!(search_exact(
-        &dict_file.trie,
-        "depannagevideo_galaxy_93130_noisy",
-        None
-    ));
-
-    let mut stack = LayerStack::<u16, u8>::with_capacity(0, 0);
-    let layer = stack.push_layer(10);
-    layer[0] = 42;
-    layer[9] = 24;
-    dbg!(layer);
-    let _ = stack.fetch_layer();
-    stack.pop_layer();
 
     Ok(())
 }
