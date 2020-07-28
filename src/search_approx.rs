@@ -1,7 +1,7 @@
 use crate::layer_stack::LayerStack;
 use std::{cmp::min, num::NonZeroU32};
 use vague_search_core::{
-    CompiledTrie, CompiledTrieNode, NaiveNode, NodeValue, PatriciaNode, RangeNode, RangeElement
+    CompiledTrie, CompiledTrieNode, NaiveNode, NodeValue, PatriciaNode, RangeElement, RangeNode,
 };
 
 /// A type to store searching distances.
@@ -55,7 +55,11 @@ impl Ord for FoundWord {
 
 /// Retrieve and push the root nodes in the iteration stack.
 /// Also push a dummy node (None) as the first element to indicate the end of the layer.
-fn push_layer_nodes<'a>(iter_stack: &mut IterationStack<'a>, nodes: &'a [CompiledTrieNode]) {
+fn push_layer_nodes<'a>(
+    iter_stack: &mut IterationStack<'a>,
+    nodes: &'a [CompiledTrieNode],
+    last_char: Option<char>,
+) {
     iter_stack.reserve(nodes.len() + 1);
 
     // Push a dummy node to represent the end of the layer
@@ -65,7 +69,7 @@ fn push_layer_nodes<'a>(iter_stack: &mut IterationStack<'a>, nodes: &'a [Compile
     for node in nodes.iter().rev() {
         iter_stack.push(Some(IterationElement {
             node,
-            last_char: None,
+            last_char,
             range_offset: 0,
         }));
     }
@@ -141,6 +145,7 @@ fn compute_layer(
     }
 }
 
+/// Push the distance layers corresponding to the current [NaiveNode](NaiveNode).
 fn push_layers_naive(
     node: &NaiveNode,
     iter_elem: &IterationElement,
@@ -165,6 +170,7 @@ fn push_layers_naive(
     );
 }
 
+/// Push the distance layers corresponding to the current [PatriciaNode](PatriciaNode).
 fn push_layers_patricia(
     _node: &PatriciaNode,
     iter_elem: &IterationElement,
@@ -199,7 +205,7 @@ fn push_layers_patricia(
         );
 
         // Append a dummy node to indicate the end of the layer (character)
-        push_layer_nodes(iter_stack, &[]);
+        push_layer_nodes(iter_stack, &[], None);
     }
 
     // Remove the last dummy node since the last character is handled in the main parent loop
@@ -207,8 +213,7 @@ fn push_layers_patricia(
     debug_assert!(matches!(popped_node, Some(None)));
 }
 
-/// Find the first index >= at the current which is a dummy node
-/// (see the add_range function)
+/// Find the index of the next range element
 fn find_next_range_node(trie_ranges: &[RangeElement], current_range_index: usize) -> Option<usize> {
     // Find the position (after current index) of the first Some element
     let pos_opt = trie_ranges
@@ -221,9 +226,15 @@ fn find_next_range_node(trie_ranges: &[RangeElement], current_range_index: usize
     Some(current_range_index + pos_opt)
 }
 
+/// Check if the current index is the last of the range
+fn is_last_index_of_range(index: u32, range_node: &RangeNode) -> bool {
+    index + 1 >= range_node.end_index.into()
+}
+
+/// Push the distance layers corresponding to the current [RangeNode](RangeNode).
 fn push_layers_range<'a>(
     node: &RangeNode,
-    iter_elem: &IterationElement <'a>,
+    iter_elem: &IterationElement<'a>,
     word: &str,
     word_char_count: WordCharCount,
     layer_stack: &mut LayerStack<Distance, WordCharCount>,
@@ -250,22 +261,30 @@ fn push_layers_range<'a>(
         cur_trie_char,
     );
 
-    // Push the following up range with an incremented range offset
-    // BIG BIG FIXME
-    if let Some(x) = find_next_range_node(trie.get_range(node.start_index, node.end_index), iter_elem.range_offset as usize) {
+    // Push the next range element if the current is not the last in the range
+    if !is_last_index_of_range(iter_elem.range_offset, node) {
+        // There remains some elements to do in the range
+        // So the next one is pushed in the nodes stack
+        let trie_ranges = trie.get_range(node.start_index, node.end_index);
+
+        // The element at `iter_elem.range_offset` is the current one, so the search for the next element
+        // needs to begin at the next one
+        let next_possible_i = iter_elem.range_offset as usize + 1;
+        let next_elem_i = find_next_range_node(trie_ranges, next_possible_i).unwrap();
+
+        // Push the same node but with the incremented range offset
+        // No dummy node is inserted because a sibling of the current node is inserted,
+        // which is in the same layer
         iter_stack.push(Some(IterationElement {
-            node: iter_elem.node,
-            last_char: iter_elem.last_char,
-            range_offset: x as u32,
+            range_offset: next_elem_i as _,
+            ..*iter_elem
         }));
     }
-    // FIXME
-
 }
 
 /// Process the current node and update the layer stack with the node's new layers.
 fn push_layers_current_node<'a>(
-    iter_elem: &IterationElement <'a>,
+    iter_elem: &IterationElement<'a>,
     word: &str,
     word_char_count: WordCharCount,
     trie: &CompiledTrie,
@@ -283,7 +302,15 @@ fn push_layers_current_node<'a>(
             iter_stack,
             trie,
         ),
-        NodeValue::Range(n) => push_layers_range(n, iter_elem, word, word_char_count, layer_stack, iter_stack, trie),
+        NodeValue::Range(n) => push_layers_range(
+            n,
+            iter_elem,
+            word,
+            word_char_count,
+            layer_stack,
+            iter_stack,
+            trie,
+        ),
     }
 }
 
@@ -327,10 +354,12 @@ fn check_add_word_to_result(
     }
 }
 
+/// Check if any of the distance is below the max distance.
 fn any_below_max_dist(cur_layer: &[Distance], dist_max: Distance) -> bool {
     cur_layer.iter().any(|&d| d < dist_max)
 }
 
+/// Get the children of the node. If the node does not have any, return an empty slice.
 fn get_node_children<'a>(
     trie: &'a CompiledTrie,
     iter_elem: &IterationElement,
@@ -347,9 +376,23 @@ fn get_node_children<'a>(
     };
 
     // Get it and its siblings, or return an empty slice if no index (no children)
-    match index {
-        Some(i) => trie.get_siblings(i),
-        None => Default::default(),
+    index.map_or(Default::default(), |i| trie.get_siblings(i))
+}
+
+/// Get the last character of the current node.
+fn get_current_last_char(trie: &CompiledTrie, iter_elem: &IterationElement) -> char {
+    match iter_elem.node.node_value() {
+        NodeValue::Naive(n) => n.character,
+        NodeValue::Patricia(_) => {
+            // SAFETY: Safe because in patricia node
+            let pat_range = unsafe { iter_elem.node.patricia_range() };
+            let substr = trie.get_chars(pat_range.start, pat_range.end);
+            substr.chars().last().unwrap()
+        }
+        NodeValue::Range(n) => {
+            // SAFETY: Safety checked during dictionary compilation
+            unsafe { std::char::from_u32_unchecked(n.first_char as u32 + iter_elem.range_offset) }
+        }
     }
 }
 
@@ -374,7 +417,7 @@ pub fn search_approx<'a>(
     let word_char_count = word.chars().count();
 
     // Initialize both stacks
-    push_layer_nodes(iter_stack, roots);
+    push_layer_nodes(iter_stack, roots, None);
     push_first_layer(layer_stack, None, word_char_count as _);
 
     // Loop over the iteration stack until empty
@@ -423,8 +466,11 @@ pub fn search_approx<'a>(
         if children.is_empty() || !any_below_max_dist(cur_layer, dist_max) {
             layer_stack.pop_layer();
         } else {
-            // Add all children to the stack
-            push_layer_nodes(iter_stack, children);
+            // Get the last character of the current node
+            let last_char = get_current_last_char(trie, &iter_elem);
+
+            // Add all children to the stack and save the last char of their parent
+            push_layer_nodes(iter_stack, children, Some(last_char));
         }
     }
 

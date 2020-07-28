@@ -49,6 +49,7 @@ fn parse_args() -> Result<Args> {
 }
 
 fn main() -> Result<()> {
+    dbg!(std::env::args().collect::<Vec<_>>());
     let args = parse_args()?;
 
     eprintln!("Reading compressed dictionary...");
