@@ -48,7 +48,7 @@ impl Ord for FoundWord {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.dist
             .cmp(&other.dist)
-            .then(self.freq.cmp(&other.freq))
+            .then(other.freq.cmp(&self.freq))
             .then(self.word.cmp(&other.word))
     }
 }
@@ -219,7 +219,7 @@ fn find_next_range_node(trie_ranges: &[RangeElement], current_range_index: usize
     let pos_opt = trie_ranges
         .iter()
         .skip(current_range_index)
-        .position(|n| n.index_first_child.is_some())?;
+        .position(|n| n.index_first_child.is_some() || n.word_freq.is_some())?;
 
     // Add the found position to the current index
     // Because the found position is based on the current index
@@ -228,7 +228,8 @@ fn find_next_range_node(trie_ranges: &[RangeElement], current_range_index: usize
 
 /// Check if the current index is the last of the range
 fn is_last_index_of_range(index: u32, range_node: &RangeNode) -> bool {
-    index + 1 >= range_node.end_index.into()
+    let range_len = u32::from(range_node.end_index) - u32::from(range_node.start_index);
+    index + 1 >= range_len
 }
 
 /// Push the distance layers corresponding to the current [RangeNode](RangeNode).
@@ -356,7 +357,7 @@ fn check_add_word_to_result(
 
 /// Check if any of the distance is below the max distance.
 fn any_below_max_dist(cur_layer: &[Distance], dist_max: Distance) -> bool {
-    cur_layer.iter().any(|&d| d < dist_max)
+    cur_layer.iter().any(|&d| d <= dist_max)
 }
 
 /// Get the children of the node. If the node does not have any, return an empty slice.
