@@ -184,6 +184,7 @@ fn push_layers_patricia(
     // SAFETY: Safe because in a patricia node
     let range_chars = unsafe { iter_elem.node.patricia_range() };
     let pat_chars = trie.get_chars(range_chars.start, range_chars.end);
+    let mut last_char = iter_elem.last_char;
 
     // Do the same computation as a naive node for each character in the patricia node
     // It will create a new layer for each character, which is not the most performant but the easiest
@@ -195,22 +196,21 @@ fn push_layers_patricia(
         let [cur_layer, last_layer, parent_layer] = layer_stack.fetch_last_3_layers();
 
         // Compute the distances and fill the layer with them
-        compute_layer(
-            cur_layer,
-            last_layer,
-            parent_layer,
-            word,
-            iter_elem.last_char,
-            ch,
-        );
+        compute_layer(cur_layer, last_layer, parent_layer, word, last_char, ch);
 
         // Append a dummy node to indicate the end of the layer (character)
         push_layer_nodes(iter_stack, &[], None);
+
+        // Modify the last char to the one which was just processed
+        last_char = Some(ch);
     }
 
-    // Remove the last dummy node since the last character is handled in the main parent loop
-    let popped_node = iter_stack.pop();
-    debug_assert!(matches!(popped_node, Some(None)));
+    let has_multiple_chars = pat_chars.chars().nth(1).is_some();
+    if has_multiple_chars {
+        // Remove the last dummy node since the last character is handled in the main parent loop
+        let popped_node = iter_stack.pop();
+        debug_assert!(matches!(popped_node, Some(None)));
+    }
 }
 
 /// Find the index of the next range element
