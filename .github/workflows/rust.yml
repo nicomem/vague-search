@@ -17,7 +17,7 @@ jobs:
       - name: Check Rustfmt
         run: cargo fmt -- --check
       - name: Run Clippy
-        run: cargo clippy -Z unstable-options --all-targets --all-features --workspace -- -D warnings
+        run: cargo clippy --all-targets --all-features --workspace -- -D warnings
       - name: Run tests
         run: cargo test --workspace
       - name: Check Windows compatibility
