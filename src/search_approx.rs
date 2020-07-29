@@ -557,6 +557,9 @@ pub fn search_approx<'a>(
                             })
                         }
                     }
+
+                    // Since all children have been processed, we can safely remove the current layer
+                    layer_stack.pop_layer();
                 }
 
                 // If it is greater, no children will have a result word,
