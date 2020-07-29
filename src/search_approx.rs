@@ -1,5 +1,8 @@
-use crate::layer_stack::LayerStack;
-use std::{cmp::min, num::NonZeroU32};
+use crate::{layer_stack::LayerStack, search_exact::search_exact_children};
+use std::{
+    cmp::{min, Ordering},
+    num::NonZeroU32,
+};
 use vague_search_core::{
     CompiledTrie, CompiledTrieNode, NaiveNode, NodeValue, PatriciaNode, RangeElement, RangeNode,
 };
@@ -39,13 +42,13 @@ pub struct FoundWord {
 }
 
 impl PartialOrd for FoundWord {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for FoundWord {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         self.dist
             .cmp(&other.dist)
             .then(other.freq.cmp(&self.freq))
@@ -157,7 +160,11 @@ fn push_layers_naive(
     layer_stack.push_layer(Some(node.character), word_char_count + 1);
 
     // Get the last 3 layers needed for the distance computation
-    let [cur_layer, last_layer, parent_layer] = layer_stack.fetch_last_3_layers();
+    let [cur_layer, last_layer, parent_layer] = if layer_stack.nb_layers() >= 3 {
+        unsafe { layer_stack.fetch_last_3_layers_unsafe() }
+    } else {
+        layer_stack.fetch_last_3_layers()
+    };
 
     // Compute the distances and fill the layer with them
     compute_layer(
@@ -186,6 +193,8 @@ fn push_layers_patricia(
     let pat_chars = trie.get_chars(range_chars.start, range_chars.end);
     let mut last_char = iter_elem.last_char;
 
+    let mut has_at_least_3_layers = layer_stack.nb_layers() >= 3;
+
     // Do the same computation as a naive node for each character in the patricia node
     // It will create a new layer for each character, which is not the most performant but the easiest
     for ch in pat_chars.chars() {
@@ -193,7 +202,13 @@ fn push_layers_patricia(
         layer_stack.push_layer(Some(ch), word_char_count + 1);
 
         // Get the last 3 layers needed for the distance computation
-        let [cur_layer, last_layer, parent_layer] = layer_stack.fetch_last_3_layers();
+        let [cur_layer, last_layer, parent_layer] = if has_at_least_3_layers {
+            unsafe { layer_stack.fetch_last_3_layers_unsafe() }
+        } else {
+            layer_stack.fetch_last_3_layers()
+        };
+
+        has_at_least_3_layers = true;
 
         // Compute the distances and fill the layer with them
         compute_layer(cur_layer, last_layer, parent_layer, word, last_char, ch);
@@ -216,9 +231,8 @@ fn push_layers_patricia(
 /// Find the index of the next range element
 fn find_next_range_node(trie_ranges: &[RangeElement], current_range_index: usize) -> Option<usize> {
     // Find the position (after current index) of the first Some element
-    let pos_opt = trie_ranges
+    let pos_opt = trie_ranges[current_range_index..]
         .iter()
-        .skip(current_range_index)
         .position(|n| n.index_first_child.is_some() || n.word_freq.is_some())?;
 
     // Add the found position to the current index
@@ -250,7 +264,11 @@ fn push_layers_range<'a>(
     layer_stack.push_layer(Some(cur_trie_char), word_char_count + 1);
 
     // Get the last 3 layers needed for the distance computation
-    let [cur_layer, last_layer, parent_layer] = layer_stack.fetch_last_3_layers();
+    let [cur_layer, last_layer, parent_layer] = if layer_stack.nb_layers() >= 3 {
+        unsafe { layer_stack.fetch_last_3_layers_unsafe() }
+    } else {
+        layer_stack.fetch_last_3_layers()
+    };
 
     // Compute the distances and fill the layer with them
     compute_layer(
@@ -330,7 +348,9 @@ fn get_node_frequency(iter_elem: &IterationElement, trie: &CompiledTrie) -> Opti
 
 /// Get the current distance to the query word from the current distance layer.
 fn get_current_distance(cur_layer: &[Distance]) -> Distance {
-    *cur_layer.last().unwrap()
+    *cur_layer
+        .last()
+        .unwrap_or_else(|| unsafe { std::hint::unreachable_unchecked() })
 }
 
 /// Check if the word can be added to the result and add it if so.
@@ -355,9 +375,38 @@ fn check_add_word_to_result(
     }
 }
 
-/// Check if any of the distance is below the max distance.
-fn any_below_max_dist(cur_layer: &[Distance], dist_max: Distance) -> bool {
-    cur_layer.iter().any(|&d| d <= dist_max)
+/// Compare the minimum distance in the layer with dist_max.
+/// If there are equal elements, return their indices.
+/// - ([5, 3, 2, 6], 3) -> (Less, [])
+/// - ([5, 3, 4, 3], 3) -> (Equal, [1, 3])
+/// - ([5, 6, 4, 4], 3) -> (Greater, [])
+fn cmp_min_with_max_dist(cur_layer: &[Distance], dist_max: Distance) -> (Ordering, Vec<usize>) {
+    let mut equals = Vec::new();
+
+    // Compare each distance in the layer
+    for (i, &e) in cur_layer.iter().enumerate() {
+        match e.cmp(&dist_max) {
+            // If one is less than dist_max, then the minimum must be less too
+            Ordering::Less => return (Ordering::Less, Vec::new()),
+
+            // If one is equal, the minimum could be less (but cannot be greater)
+            // Add its index to the
+            Ordering::Equal => equals.push(i),
+
+            // If one is greater, no additional information can be deduced
+            Ordering::Greater => {}
+        }
+    }
+
+    // If we found an element equal (but no less), return this information
+    // Else, all distances were greater
+    let ord = if !equals.is_empty() {
+        Ordering::Equal
+    } else {
+        Ordering::Greater
+    };
+
+    (ord, equals)
 }
 
 /// Get the children of the node. If the node does not have any, return an empty slice.
@@ -462,16 +511,60 @@ pub fn search_approx<'a>(
 
         let children = get_node_children(trie, &iter_elem);
 
-        // If no children or current word has exceeded dist_max,
-        // remove its layer and continue with next iteration
-        if children.is_empty() || !any_below_max_dist(cur_layer, dist_max) {
+        if children.is_empty() {
+            // If no children, remove its layer and continue with next iteration
             layer_stack.pop_layer();
         } else {
-            // Get the last character of the current node
-            let last_char = get_current_last_char(trie, &iter_elem);
+            // If children, compare the minimum distance of the layer with the max_dist
+            match cmp_min_with_max_dist(cur_layer, dist_max) {
+                // If it is less, add all children and continue with the next iteration
+                (Ordering::Less, _) => {
+                    // Get the last character of the current node
+                    let last_char = get_current_last_char(trie, &iter_elem);
 
-            // Add all children to the stack and save the last char of their parent
-            push_layer_nodes(iter_stack, children, Some(last_char));
+                    // Add all children to the stack and save the last char of their parent
+                    push_layer_nodes(iter_stack, children, Some(last_char));
+                }
+
+                // If it is equal, it is now a problem of exact search, which can have
+                // a better optimized algorithm than the approximate search
+                (Ordering::Equal, equals) => {
+                    // Search from all equal position
+                    for equal_i in equals {
+                        // The last index of the layer could be returned, which represent the end of the word
+                        // This case is already handled in check_add_word_to_result
+                        let split_index = if let Some((i, _)) = word.char_indices().nth(equal_i) {
+                            i
+                        } else {
+                            continue;
+                        };
+
+                        // Find the portion of the word to search (remove the already searched part)
+                        let subword_to_search = &word[split_index..];
+
+                        // Search the subword from the children
+                        let freq_opt = search_exact_children(trie, subword_to_search, children);
+                        if let Some(freq) = freq_opt {
+                            // Concatenate the already search subword with the newly searched subword
+                            // to find the word that have been found
+                            let mut word = layer_word.to_owned();
+                            word.push_str(subword_to_search);
+
+                            result_buffer.push(FoundWord {
+                                word,
+                                freq,
+                                dist: dist_max,
+                            })
+                        }
+                    }
+                }
+
+                // If it is greater, no children will have a result word,
+                // so we can safely ignore them and pop the current layer
+                (Ordering::Greater, _) => {
+                    layer_stack.pop_layer();
+                }
+            }
         }
     }
 
