@@ -2,8 +2,6 @@
 
 An approximate search engine (project for the text-mining course).
 
-## Table of contents
-
 ## Authors
 
 - Nicolas Mémeint
