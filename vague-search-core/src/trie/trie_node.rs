@@ -220,7 +220,7 @@ impl CompiledTrieNode {
     /// Return the length of the stored string.
     pub unsafe fn patricia_range(&self) -> Range<IndexChar> {
         debug_assert!(matches!(self.node_value(), NodeValue::Patricia(_)));
-        let pat_str_len = self.get_masked_flags(Self::MASK_PAT_STR_LENGTH);
+        let pat_str_len = self.get_masked_flags(CompiledTrieNode::MASK_PAT_STR_LENGTH);
 
         let start_index: IndexChar = self.node_union.patricia.start_index;
         let end_index = IndexChar::new(*start_index + pat_str_len);
@@ -229,7 +229,8 @@ impl CompiledTrieNode {
 
     /// Return the number of siblings of the node.
     pub const fn nb_siblings(&self) -> u32 {
-        self.get_masked_flags(Self::MASK_NB_SIBLINGS)
+        const TRAILING_ZEROS: u32 = CompiledTrieNode::MASK_NB_SIBLINGS.trailing_zeros();
+        (self.nb_siblings_with_flags & CompiledTrieNode::MASK_NB_SIBLINGS) >> TRAILING_ZEROS
     }
 }
 

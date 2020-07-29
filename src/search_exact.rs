@@ -32,14 +32,22 @@ fn compare_keys(
 
 pub fn search_exact(
     trie: &CompiledTrie,
-    mut word: &str,
+    word: &str,
     index: Option<IndexNodeNonZero>,
 ) -> Option<NonZeroU32> {
-    let mut children = match index {
+    let children = match index {
         None => trie.get_root_siblings()?,
         Some(i) => trie.get_siblings(i),
     };
 
+    search_exact_children(trie, word, children)
+}
+
+pub fn search_exact_children<'a>(
+    trie: &'a CompiledTrie,
+    mut word: &str,
+    mut children: &'a [CompiledTrieNode],
+) -> Option<NonZeroU32> {
     loop {
         debug_assert_ne!(word.len(), 0);
         let first_char: char = word.chars().next()?;

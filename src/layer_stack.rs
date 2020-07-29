@@ -35,6 +35,10 @@ impl<E, S: Copy + Into<usize>> LayerStack<E, S> {
         &self.word
     }
 
+    pub fn nb_layers(&self) -> usize {
+        self.layers.len()
+    }
+
     /// Create a new layer of the wanted size in the stack and return it.
     ///
     /// The layer_char can be ommited for the first layer, it will not be added
@@ -93,6 +97,32 @@ impl<E, S: Copy + Into<usize>> LayerStack<E, S> {
         } else {
             None
         }
+    }
+
+    /// Same as fetch_last_3_layers but the caller must make sure there is at least 3
+    /// layers in the stack.
+    pub unsafe fn fetch_last_3_layers_unsafe(&mut self) -> [&mut [E]; 3] {
+        use std::hint::unreachable_unchecked;
+
+        let mut sizes = self.layers.iter();
+        let csize = (*sizes.next_back().unwrap_or_else(|| unreachable_unchecked())).into();
+        let lsize = (*sizes.next_back().unwrap_or_else(|| unreachable_unchecked())).into();
+        let psize = (*sizes.next_back().unwrap_or_else(|| unreachable_unchecked())).into();
+
+        // If at least 2 elements, get the last 2 layers sizes
+        // and find their start indices
+        let nb_elements = self.elements.len();
+        let i_cur_layer = nb_elements - csize;
+        let i_last_layer = i_cur_layer - lsize;
+        let i_parent_layer = i_last_layer - psize;
+
+        // Split elements into two mutable slices at the index of the last slice
+        let (all_previous, cur_layer) = self.elements.split_at_mut(i_cur_layer);
+        let (all_previous, last_layer) = all_previous.split_at_mut(i_last_layer);
+        let parent_layer = &mut all_previous[i_parent_layer..];
+
+        // Return the slices of the two last layers
+        [cur_layer, last_layer, parent_layer]
     }
 
     /// Try to fetch the last 3 layers as mutable slices.

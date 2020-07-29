@@ -55,13 +55,17 @@ test utils::test::test_char_dist ... ok
 ### Recherche
 
 ```bash
-running 11 tests
+running 15 tests
 test layer_stack::test::test_fetch_last_3_layers ... ok
 test layer_stack::test::test_one_layer ... ok
+test search_approx::test::test_cmp_min_with_max_dist_all_equal ... ok
+test search_approx::test::test_cmp_min_with_max_dist_greater ... ok
+test search_approx::test::test_cmp_min_with_max_dist_less ... ok
+test search_approx::test::test_cmp_min_with_max_dist_one_equal ... ok
 test search_approx::test::test_compute_layer_abaca_alabama ... ok
 test search_approx::test::test_compute_layer_abcdef_badcfe ... ok
-test search_approx::test::test_compute_layer_alabama_abaca ... ok
 test search_approx::test::test_compute_layer_kries_crise ... ok
+test search_approx::test::test_compute_layer_alabama_abaca ... ok
 test search_approx::test::test_compute_layer_one_layer_same_char ... ok
 test search_approx::test::test_compute_layer_one_layer_same_diff_char ... ok
 test search_approx::test::test_compute_layer_one_layer_same_not_first_char ... ok
@@ -158,26 +162,23 @@ Ceci dis, cela concerne exclusivement le programme compilateur.
 
 Au regard de nos résultats sur le programme principal, la vitesse est un des points à améliorer pour des approximations de petites distances. Autrement, nous battons le programme référence que ce soit au niveau mémoire mais aussi vitesse sur les grandes distances d'approximations.
 
-### Recherche exacte
+### Tableau des performances (Query Per Second)
 
-|                      | Réference | Vague search |
-|----------------------|:---------:|:------------:|
-| Vitesse              |  &#9744;  |    &#9745;   |
-| Utilisation Mémoire  |    ~      |      ~       |
+|              | Réference | Vague search |
+|--------------|:---------:|:------------:|
+| distance = 0 |    370k   |     700k     |
+| distance = 1 |     10k   |     8.7k     |
+| distance = 2 |    315    |     303      |
+| distance = 3 |     21    |      23      |
 
-### Recherche à faible distance (d < 4)
+### Tableau des performances (Utilisation mémoire)
 
-|                      | Réference | Vague search |
-|----------------------|:---------:|:------------:|
-| Vitesse              |  &#9745;  |   &#9744;    |
-| Utilisation Mémoire  |  &#9744;  |   &#9745;    |
-
-### Recherche approximative à forte distance (d > 4)
-
-|                      | Réference | Vague search |
-|----------------------|:---------:|:------------:|
-| Vitesse              |  &#9744;  |   &#9745;    |
-| Utilisation Mémoire  |  &#9744;  |   &#9745;    |
+|               | Réference | Vague search |
+|---------------|:---------:|:------------:|
+| distance = 0  |    40Mo   |   < 10Mo     |
+| distance = 3  |   100Mo   |     10Mo     |
+| distance = 4  |   500Mo   |     30Mo     |
+| distance = 10 | >>> 8Go   |    280Mo     |
 
 ## 7. Que manque-t-il à votre correcteur orthographique pour qu’il soit à l’état de l’art ?
 

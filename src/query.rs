@@ -138,12 +138,12 @@ fn display_json_result(json_buffer: &str) {
 
 /// Process queries received in the [standard input stream](std::io::stdin)
 pub fn process_stdin_queries(trie: &CompiledTrie) -> Result<()> {
-    const LINE_CAP: usize = 30;
-    const LAYER_STACK_ELEMENTS_CAP: usize = 100;
-    const LAYER_STACK_LAYERS_CAP: usize = 10;
-    const ITERATION_STACK_CAP: usize = 50;
-    const RESULT_BUFFER_CAP: usize = 50;
-    const JSON_BUFFER_CAP: usize = 300;
+    const LINE_CAP: usize = 100;
+    const LAYER_STACK_ELEMENTS_CAP: usize = 2000;
+    const LAYER_STACK_LAYERS_CAP: usize = 50;
+    const ITERATION_STACK_CAP: usize = 500;
+    const RESULT_BUFFER_CAP: usize = 1000;
+    const JSON_BUFFER_CAP: usize = 3000;
 
     // Initialize all buffers used to reduce allocation overhead
     let mut line = String::with_capacity(LINE_CAP);
