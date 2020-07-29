@@ -539,7 +539,7 @@ pub fn search_approx<'a>(
                             continue;
                         };
 
-                        // Find the portion of the word to search (remove the already searched part)
+                        // Find the portion of the word to search (remoPve the already searched part)
                         let subword_to_search = &word[split_index..];
 
                         // Search the subword from the children
@@ -678,5 +678,41 @@ mod test {
             [6, 5, 5, 4, 4, 3, 3].as_ref(),
         ];
         check_compute_layer_word(word, trie_word, &target_layers);
+    }
+
+    #[test]
+    fn test_cmp_min_with_max_dist_less() {
+        let layer = vec![5, 3, 2, 6];
+        let dist_max = 3;
+        let (ord, v) = cmp_min_with_max_dist(&layer, dist_max);
+        assert_eq!(ord, Ordering::Less);
+        assert_eq!(v, Vec::new());
+    }
+
+    #[test]
+    fn test_cmp_min_with_max_dist_one_equal() {
+        let layer = vec![5, 3, 4, 6];
+        let dist_max = 3;
+        let (ord, v) = cmp_min_with_max_dist(&layer, dist_max);
+        assert_eq!(ord, Ordering::Equal);
+        assert_eq!(v, vec![1]);
+    }
+
+    #[test]
+    fn test_cmp_min_with_max_dist_all_equal() {
+        let layer = vec![3, 3, 3, 3];
+        let dist_max = 3;
+        let (ord, v) = cmp_min_with_max_dist(&layer, dist_max);
+        assert_eq!(ord, Ordering::Equal);
+        assert_eq!(v, vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn test_cmp_min_with_max_dist_greater() {
+        let layer = vec![5, 6, 4, 4];
+        let dist_max = 3;
+        let (ord, v) = cmp_min_with_max_dist(&layer, dist_max);
+        assert_eq!(ord, Ordering::Greater);
+        assert_eq!(v, Vec::new());
     }
 }
