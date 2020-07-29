@@ -145,13 +145,13 @@ Notre programme gèrant extrèment bien les approximations toute correction en U
 
 ### 4. Quelle est la structure de données que vous avez implémentée dans votre projet, pourquoi?
 
-Nous avons implémenté un **Patricia trie** et une version compilé de ce dernier que customisé que nous avons appelé **Compiled Trie**.  
+Nous avons implémenté un **Patricia trie** et une version compilé de ce dernier customisé que nous avons appelé **Compiled Trie**.  
 Le Patricia trie normal est utilisé pour construire le trie à partir de la liste des mots fournis au moment du compilateur.
 ![Patricia Trie](https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Patricia_trie.svg/1200px-Patricia_trie.svg.png)
 
 Puis pour optimiser l’application nous avons mis au point un Compiled Trie prenant beaucoup moins de places en mémoire qu’en conditions habituelles avec notamment un mélange de plusieurs types de noeuds.
 - **Naive Node:** noeud contenant une lettre et la fréquence si mot
-- **Range Node:** noeud contenant une suite de un caractère en ordre lexicale permettant de compacter un grand nombre de naives nodes un seul noeud. Chaque caractère dans la suite à ainsi la possiblité d'avoir des enfants et d'être un mot.
+- **Range Node:** noeud contenant une suite de simples caractères en ordre lexicale permettant de compacter un grand nombre de naives nodes un seul noeud. Chaque caractère dans la suite à ainsi la possiblité d'avoir des enfants et d'être un mot.
 - **Patricia Node:** noeud commun d'un Patricia Trie contenant une string et la fréquence optionnelle du mot.  
 
 L’accès est à la fois bien plus rapide et engendre un gain de mémoire par deux au minimum.
@@ -164,21 +164,25 @@ Deux choix sont possibles, une distance fixe ou une distance fluctuante.
 La distance fixe permettrait d'uniformiser les résultats et les recherches. Mais réduirait la généralisation.
 
 La distance changeante pourrait permettre de mieux s'adapter au contexte du mot et aux options disponibles. On pourrait par exemple prendre une distance grande en fonction de la taille du mot avec un certain logarithme.
-Il faudrait évaluer cela par des humains et comparés à ce qu'un humain attendrait. La métrique serait ainsi le nombre de résultats utiles.  
-Côté utilisateur, afin de confirmer la qualité de l'algorithme, un panel d'humains votant sur la métrique défini plus haute aiderait à l'évaluation.
+Il faudrait évaluer cela par des humains et comparer à ce qu'un humain attendrait. La métrique serait ainsi le nombre de résultats utiles.  
+Côté utilisateur, afin de confirmer la qualité de l'algorithme, un panel d'humains votant sur la métrique définie plus haute aiderait à l'évaluation.
  
 ### 6. Comment comptez vous améliorer les performances de votre programme?
-Nous avons déjà optimisé des meilleurs façons que nous le pouvions mais il existe encore peut être des moyens d’accélérer notamment la création du dictionnaire compilé avec une meilleure complexité sur l’insertion et le passage de Patricia trie normal à Patricia trie compilé. Ceci dis, cela concerne exclusivement le programme compilateur.
+Nous avons déjà optimisé des meilleurs façons que nous le pouvions mais il existe encore peut être des moyens d’accélérer.  
+Notamment la création du dictionnaire compilé avec une meilleure complexité sur l’insertion et le passage de Patricia trie normal à Patricia trie compilé. 
 
-Au regard de nos résultats sur le programme principale, la vitesse est un des points à améliorer pour des approximations de petites distances. Autrement, nous battons le programme référence que ce soit au niveau mémoire mais aussi vitesse sur les grandes distances d'approximations.  
+Réduire la conso mémoire du compilo, en écrivant peut-être direct dans le fichier ou en écrivant une fois une "branche" terminée est aussi une option.
+Ceci dis, cela concerne exclusivement le programme compilateur.
 
-#### Low distance approximation
+Au regard de nos résultats sur le programme principal, la vitesse est un des points à améliorer pour des approximations de petites distances. Autrement, nous battons le programme référence que ce soit au niveau mémoire mais aussi vitesse sur les grandes distances d'approximations.  
+
+#### Low distance approximation winner
 |          |  Reference  |  Vague search |
 |----------|:-----------:|:-------------:|
 | Speed    |   &#9745;   |   &#9744;     |
 | Memory usage  |   &#9744;   |   &#9745;     |
 
-#### High distance approximation
+#### High distance approximation winner
 |          |  Reference  |  Vague search |
 |----------|:-----------:|:-------------:|
 | Speed    |   &#9744;   |   &#9745;     |
