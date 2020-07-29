@@ -2,6 +2,8 @@
 
 An approximate search engine (project for the text-mining course).
 
+## Table of contents
+
 ## Authors
 
 - Nicolas Mémeint
@@ -12,20 +14,21 @@ An approximate search engine (project for the text-mining course).
 - Fast
 - Low memory footprint
 - Compatible with **any** valid UTF-8 words
+- Optimized for single-core usage
 
 ## Pre-requisites
 
-- Latest (stable) Rust toolchain
-  - See [the Rust website](https://www.rust-lang.org/learn/get-started)
+- Rust toolchain >= 1.47
+  - See [the Rust website](https://www.rust-lang.org/learn/get-started) for installation instructions
 - *optional* A POSIX-compatible OS
-  - If your OS is Windows or another non-POSIX OS, the entire compiled dictionary will be loaded,
-   instead of loading it dynamically via the `mmap` syscall
+  - If your OS is Windows, the entire compiled dictionary will be loaded
+   instead of loading it dynamically via the `mmap` system-call
 
 ## Usage
 
 An example list of shell commands to build and run the project:
 
-```shell
+```bash
 # Build the binaries in the current folder
 ./build.sh
 
@@ -42,12 +45,16 @@ cat test.txt | ./TextMiningApp /path/to/dict.bin
 
 ## Documentation
 
-```shell
+```bash
 cargo doc --workspace --open
 ```
 
 ## Tests
 
-```shell
+```bash
 cargo test --workspace
 ```
+
+## Questions for the projet
+
+See the [QUESTIONS.md](./QUESTIONS.md) for the answers to the Text-Mining course questions.
