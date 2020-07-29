@@ -376,22 +376,28 @@ fn check_add_word_to_result(
 }
 
 /// Compare the minimum distance in the layer with dist_max.
-/// If there are equal elements, return their indices.
-/// - ([5, 3, 2, 6], 3) -> (Less, [])
+/// Use the given a buffer to avoid reallocation.
+/// If the returned value is Equal, return indices of equal elements.
+/// If the returned value is not Equal, the state of the buffer is not specified.
+/// - ([5, 3, 2, 6], 3) -> (Less, [?])
 /// - ([5, 3, 4, 3], 3) -> (Equal, [1, 3])
-/// - ([5, 6, 4, 4], 3) -> (Greater, [])
-fn cmp_min_with_max_dist(cur_layer: &[Distance], dist_max: Distance) -> (Ordering, Vec<usize>) {
-    let mut equals = Vec::new();
+/// - ([5, 6, 4, 4], 3) -> (Greater, [?])
+fn cmp_min_with_max_dist<'a>(
+    cur_layer: &[Distance],
+    dist_max: Distance,
+    buffer: &'a mut Vec<usize>,
+) -> (Ordering, &'a mut Vec<usize>) {
+    buffer.clear();
 
     // Compare each distance in the layer
     for (i, &e) in cur_layer.iter().enumerate() {
         match e.cmp(&dist_max) {
             // If one is less than dist_max, then the minimum must be less too
-            Ordering::Less => return (Ordering::Less, Vec::new()),
+            Ordering::Less => return (Ordering::Less, buffer),
 
             // If one is equal, the minimum could be less (but cannot be greater)
             // Add its index to the
-            Ordering::Equal => equals.push(i),
+            Ordering::Equal => buffer.push(i),
 
             // If one is greater, no additional information can be deduced
             Ordering::Greater => {}
@@ -400,13 +406,13 @@ fn cmp_min_with_max_dist(cur_layer: &[Distance], dist_max: Distance) -> (Orderin
 
     // If we found an element equal (but no less), return this information
     // Else, all distances were greater
-    let ord = if !equals.is_empty() {
+    let ord = if !buffer.is_empty() {
         Ordering::Equal
     } else {
         Ordering::Greater
     };
 
-    (ord, equals)
+    (ord, buffer)
 }
 
 /// Get the children of the node. If the node does not have any, return an empty slice.
@@ -462,6 +468,8 @@ pub fn search_approx<'a>(
         return result_buffer;
     }
 
+    let mut equals_buf = Vec::new();
+
     // Retrieve the root nodes
     let roots = trie.get_root_siblings().unwrap();
     let word_char_count = word.chars().count();
@@ -516,7 +524,7 @@ pub fn search_approx<'a>(
             layer_stack.pop_layer();
         } else {
             // If children, compare the minimum distance of the layer with the max_dist
-            match cmp_min_with_max_dist(cur_layer, dist_max) {
+            match cmp_min_with_max_dist(cur_layer, dist_max, &mut equals_buf) {
                 // If it is less, add all children and continue with the next iteration
                 (Ordering::Less, _) => {
                     // Get the last character of the current node
@@ -533,7 +541,7 @@ pub fn search_approx<'a>(
                     for equal_i in equals {
                         // The last index of the layer could be returned, which represent the end of the word
                         // This case is already handled in check_add_word_to_result
-                        let split_index = if let Some((i, _)) = word.char_indices().nth(equal_i) {
+                        let split_index = if let Some((i, _)) = word.char_indices().nth(*equal_i) {
                             i
                         } else {
                             continue;
@@ -687,35 +695,37 @@ mod test {
     fn test_cmp_min_with_max_dist_less() {
         let layer = vec![5, 3, 2, 6];
         let dist_max = 3;
-        let (ord, v) = cmp_min_with_max_dist(&layer, dist_max);
+        let mut buf = vec![];
+        let (ord, _v) = cmp_min_with_max_dist(&layer, dist_max, &mut buf);
         assert_eq!(ord, Ordering::Less);
-        assert_eq!(v, Vec::new());
     }
 
     #[test]
     fn test_cmp_min_with_max_dist_one_equal() {
         let layer = vec![5, 3, 4, 6];
         let dist_max = 3;
-        let (ord, v) = cmp_min_with_max_dist(&layer, dist_max);
+        let mut buf = vec![];
+        let (ord, v) = cmp_min_with_max_dist(&layer, dist_max, &mut buf);
         assert_eq!(ord, Ordering::Equal);
-        assert_eq!(v, vec![1]);
+        assert_eq!(*v, vec![1]);
     }
 
     #[test]
     fn test_cmp_min_with_max_dist_all_equal() {
         let layer = vec![3, 3, 3, 3];
         let dist_max = 3;
-        let (ord, v) = cmp_min_with_max_dist(&layer, dist_max);
+        let mut buf = vec![];
+        let (ord, v) = cmp_min_with_max_dist(&layer, dist_max, &mut buf);
         assert_eq!(ord, Ordering::Equal);
-        assert_eq!(v, vec![0, 1, 2, 3]);
+        assert_eq!(*v, vec![0, 1, 2, 3]);
     }
 
     #[test]
     fn test_cmp_min_with_max_dist_greater() {
         let layer = vec![5, 6, 4, 4];
         let dist_max = 3;
-        let (ord, v) = cmp_min_with_max_dist(&layer, dist_max);
+        let mut buf = vec![];
+        let (ord, _v) = cmp_min_with_max_dist(&layer, dist_max, &mut buf);
         assert_eq!(ord, Ordering::Greater);
-        assert_eq!(v, Vec::new());
     }
 }
