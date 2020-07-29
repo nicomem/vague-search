@@ -111,8 +111,14 @@ done
 
 ## 3. Avez-vous détecté des cas où la correction par distance ne fonctionnait pas (même avec une distance élevée) ?
 
-Le seul cas ou cela ne fonctionnerait pas est si le mot sort de l'UTF-8, par exemple en UTF-16.
-Notre programme gérant extrêmement bien les approximations toute correction en UTF-8 est possible hors de ce dernier cas.
+Pour ce qui est de la correction par recherche approximative par distance d'édition, notre implémentation fonctionne pour tout type de mots dans le dictionnaire, fonctionnant même pour des combinaisons de caractères unicodes comportant des [emojis](https://fr.wikipedia.org/wiki/%C3%89moji) ou même des [diacritiques](https://fr.wikipedia.org/wiki/Diacritique).
+
+On pourrait cependant à des améliorations sur les résultats, non réalisables avec seulement un trie, qui relèvent plus de la correction sémantique, tel que:
+
+- Recherche de synonymes
+- Analyse de la structure de la phrase (ex. verbe, complément)
+- Analyse du langage (ex. familier, professionel)
+- Detection d'oubli de mots
 
 ## 4. Quelle est la structure de données que vous avez implémentée dans votre projet, pourquoi ?
 
