@@ -10,8 +10,14 @@ An approximate search engine (project for the text-mining course).
 ## Features
 
 - Fast
+  - 700k qps at distance 0
+  - 8k qps at distance 1
+  - 300 qps at distance 2
 - Low memory footprint
+  - 30Mo at distance 4
+  - 300Mo at distance 10
 - Compatible with **any** valid UTF-8 words
+  - Even [emojis](https://en.wikipedia.org/wiki/Emoji) or [diacritics](https://en.wikipedia.org/wiki/Diacritic).
 - Optimized for single-core usage
 
 ## Pre-requisites
