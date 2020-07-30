@@ -171,6 +171,7 @@ Au regard de nos résultats sur le programme principal, la vitesse est un des po
 | distance = 2  |    300    |      70      |
 | distance = 3  |     20    |      10      |
 | distance = 4  |    1.5    |       3      |
+| distance = 5  |    N/A    |     1.5      |
 
 ### Tableau des performances (Utilisation mémoire)
 
@@ -179,7 +180,7 @@ Au regard de nos résultats sur le programme principal, la vitesse est un des po
 | distance = 0  |    40Mo   |   < 10Mo     |
 | distance = 3  |   100Mo   |     10Mo     |
 | distance = 4  |   500Mo   |     30Mo     |
-| distance = 10 | >>> 8Go   |    280Mo     |
+| distance = 10 | >>> 8Go   |    160Mo     |
 
 ## 7. Que manque-t-il à votre correcteur orthographique pour qu’il soit à l’état de l’art ?
 
