@@ -164,12 +164,13 @@ Au regard de nos résultats sur le programme principal, la vitesse est un des po
 
 ### Tableau des performances (Query Per Second)
 
-|              | Réference | Vague search |
-|--------------|:---------:|:------------:|
-| distance = 0 |    370k   |     700k     |
-| distance = 1 |     10k   |     8.7k     |
-| distance = 2 |    315    |     303      |
-| distance = 3 |     21    |      23      |
+|               | Réference | Vague search |
+|---------------|:---------:|:------------:|
+| distance = 0  |    230k   |     330k     |
+| distance = 1  |    6.5k   |     1.5k     |
+| distance = 2  |    300    |      70      |
+| distance = 3  |     20    |      10      |
+| distance = 4  |    1.5    |       3      |
 
 ### Tableau des performances (Utilisation mémoire)
 
