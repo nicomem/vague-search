@@ -124,7 +124,7 @@ fn process_search_approx<'a>(
             let r = write!(json_writer, ",");
             debug_assert!(r.is_ok());
         }
-        first = true;
+        first = false;
 
         // Extract inner string to reduce memory usage
         let inner_word = std::mem::take(&mut found_word.word);
