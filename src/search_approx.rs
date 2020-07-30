@@ -537,37 +537,50 @@ pub fn search_approx<'a>(
                 // If it is equal, it is now a problem of exact search, which can have
                 // a better optimized algorithm than the approximate search
                 (Ordering::Equal, equals) => {
-                    // Search from all equal position
-                    for equal_i in equals {
-                        // The last index of the layer could be returned, which represent the end of the word
-                        // This case is already handled in check_add_word_to_result
-                        let split_index = if let Some((i, _)) = word.char_indices().nth(*equal_i) {
-                            i
-                        } else {
-                            continue;
-                        };
+                    let [_, last_layer, _] = layer_stack.fetch_last_3_layers();
+                    let cannot_transpose = last_layer.iter().all(|&e| e >= dist_max);
+                    if !cannot_transpose {
+                        // Get the last character of the current node
+                        let last_char = get_current_last_char(trie, &iter_elem);
 
-                        // Find the portion of the word to search (remoPve the already searched part)
-                        let subword_to_search = &word[split_index..];
+                        // Add all children to the stack and save the last char of their parent
+                        push_layer_nodes(iter_stack, children, Some(last_char));
+                    } else {
+                        // Search from all equal position
+                        for equal_i in equals {
+                            // The last index of the layer could be returned, which represent the end of the word
+                            // This case is already handled in check_add_word_to_result
+                            let split_index =
+                                if let Some((i, _)) = word.char_indices().nth(*equal_i) {
+                                    i
+                                } else {
+                                    debug_assert_eq!(*equal_i, word.char_indices().count());
+                                    continue;
+                                };
 
-                        // Search the subword from the children
-                        let freq_opt = search_exact_children(trie, subword_to_search, children);
-                        if let Some(freq) = freq_opt {
-                            // Concatenate the already search subword with the newly searched subword
-                            // to find the word that have been found
-                            let mut word = layer_word.to_owned();
-                            word.push_str(subword_to_search);
+                            // Find the portion of the word to search (remove the already searched part)
+                            let subword_to_search = &word[split_index..];
 
-                            result_buffer.push(FoundWord {
-                                word,
-                                freq,
-                                dist: dist_max,
-                            })
+                            // Search the subword from the children
+                            let freq_opt = search_exact_children(trie, subword_to_search, children);
+                            let layer_word = layer_stack.get_layers_word();
+                            if let Some(freq) = freq_opt {
+                                // Concatenate the already search subword with the newly searched subword
+                                // to find the word that have been found
+                                let mut word = layer_word.to_owned();
+                                word.push_str(subword_to_search);
+
+                                result_buffer.push(FoundWord {
+                                    word,
+                                    freq,
+                                    dist: dist_max,
+                                })
+                            }
                         }
-                    }
 
-                    // Since all children have been processed, we can safely remove the current layer
-                    layer_stack.pop_layer();
+                        // Since all children have been processed, we can safely remove the current layer
+                        layer_stack.pop_layer();
+                    }
                 }
 
                 // If it is greater, no children will have a result word,
