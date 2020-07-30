@@ -13,4 +13,5 @@ panic = "abort"
 
 [dependencies]
 vague-search-core = { path = "./vague-search-core" }
+itoa = "0.4"
 snafu = "0.6"
