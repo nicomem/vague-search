@@ -166,20 +166,22 @@ Au regard de nos résultats sur le programme principal, la vitesse est un des po
 
 |               | Réference | Vague search |
 |---------------|:---------:|:------------:|
-| distance = 0  |    230k   |     330k     |
-| distance = 1  |    6.5k   |     1.5k     |
-| distance = 2  |    300    |      70      |
-| distance = 3  |     20    |      10      |
-| distance = 4  |    1.5    |       3      |
-| distance = 5  |    N/A    |     1.5      |
+| distance = 0  |    370k   |     700k     |
+| distance = 1  |    8.8k   |     3.7k     |
+| distance = 2  |    320    |     110      |
+| distance = 3  |     22    |      11      |
+| distance = 4  |    1.7    |       3      |
+| distance = 5  |    0.3    |     1.5      |
+| distance = 10 |    N/A    |     0.2      |
 
 ### Tableau des performances (Utilisation mémoire)
 
 |               | Réference | Vague search |
 |---------------|:---------:|:------------:|
 | distance = 0  |    40Mo   |   < 10Mo     |
-| distance = 3  |   100Mo   |     10Mo     |
-| distance = 4  |   500Mo   |     30Mo     |
+| distance = 3  |   100Mo   |   < 10Mo     |
+| distance = 4  |   500Mo   |     20Mo     |
+| distance = 5  |   4.2Go   |     40Mo     |
 | distance = 10 | >>> 8Go   |    160Mo     |
 
 ## 7. Que manque-t-il à votre correcteur orthographique pour qu’il soit à l’état de l’art ?

@@ -1,6 +1,6 @@
 use crate::{layer_stack::LayerStack, search_exact::search_exact_children};
 use std::{
-    cmp::{min, Ordering},
+    cmp::{max, min, Ordering},
     num::NonZeroU32,
 };
 use vague_search_core::{
@@ -105,13 +105,11 @@ fn compute_layer(
     debug_assert_eq!(layer.len(), word.chars().count() + 1);
     debug_assert_eq!(last_layer.len(), layer.len());
 
-    let mut word_chars = word.chars();
     let mut prev_word_char_opt = None;
 
     layer[0] = last_layer[0] + 1;
-    for i in 1..layer.len() {
-        // Retrieve the current character
-        let cur_word_char = word_chars.next().unwrap();
+    for (i, cur_word_char) in word.chars().enumerate() {
+        let i = i + 1;
         let diff_character = cur_word_char != cur_trie_char;
 
         // Compute the costs for insert/delete/replace
@@ -120,28 +118,13 @@ fn compute_layer(
         let replace_cost = last_layer[i - 1] + diff_character as Distance;
 
         // Compute transposition cost
-        let trans_cost = match (
-            parent_layer.is_empty(),
-            prev_word_char_opt,
-            cur_word_char,
-            last_char,
-            cur_trie_char,
-        ) {
-            // Check if transposing the 2 chars of one substring == the other
-            (false, Some(word_prev), word_cur, Some(trie_prev), trie_cur)
-                if word_prev == trie_cur && word_cur == trie_prev =>
-            {
-                debug_assert_eq!(parent_layer.len(), layer.len());
-                parent_layer[i - 2] + 1
-            }
-
-            // If not, we cannot transpose and so return the max value to
-            // make the min take one of the other costs
-            _ => Distance::MAX,
-        };
+        let trans1_match = prev_word_char_opt.filter(|&c| c == cur_trie_char);
+        let trans2_match = trans1_match.and_then(|_| last_char.filter(|&c| c == cur_word_char));
+        let trans_cost = trans2_match.and_then(|_| parent_layer.get(i - 2));
+        let min_trans_replace = trans_cost.map_or(replace_cost, |c| min(c + 1, replace_cost));
 
         // Set the current cell value to the minimum of all costs
-        layer[i] = min(min(insert_cost, delete_cost), min(replace_cost, trans_cost));
+        layer[i] = min(min(insert_cost, delete_cost), min_trans_replace);
 
         // Save the current character for the next iteration
         prev_word_char_opt = Some(cur_word_char);
@@ -347,10 +330,9 @@ fn get_node_frequency(iter_elem: &IterationElement, trie: &CompiledTrie) -> Opti
 }
 
 /// Get the current distance to the query word from the current distance layer.
+#[inline(always)]
 fn get_current_distance(cur_layer: &[Distance]) -> Distance {
-    *cur_layer
-        .last()
-        .unwrap_or_else(|| unsafe { std::hint::unreachable_unchecked() })
+    cur_layer[cur_layer.len() - 1]
 }
 
 /// Check if the word can be added to the result and add it if so.
@@ -538,8 +520,13 @@ pub fn search_approx<'a>(
                 // a better optimized algorithm than the approximate search
                 (Ordering::Equal, equals) => {
                     let [_, last_layer, _] = layer_stack.fetch_last_3_layers();
-                    let cannot_transpose = last_layer.iter().all(|&e| e >= dist_max);
-                    if !cannot_transpose {
+
+                    let first_equal_diag_i = max(2, equals[0]) - 2;
+                    let last_equal_diag_i = max(2, *equals.last().unwrap()) - 2;
+                    let slice_to_check = &last_layer[first_equal_diag_i..=last_equal_diag_i];
+                    let can_transpose = slice_to_check.iter().any(|&c| c < dist_max);
+
+                    if can_transpose {
                         // Get the last character of the current node
                         let last_char = get_current_last_char(trie, &iter_elem);
 
