@@ -468,7 +468,7 @@ fn check_potential_damerau<'a>(
 
     let char_in_children = |c| {
         children
-            .binary_search_by(|node| compare_keys(node, c, trie))
+            .binary_search_by(|node| compare_keys(node, &node.node_value(), c, trie))
             .is_ok()
     };
 
