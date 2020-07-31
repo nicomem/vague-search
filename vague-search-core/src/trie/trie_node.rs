@@ -229,8 +229,7 @@ impl CompiledTrieNode {
 
     /// Return the number of siblings of the node.
     pub const fn nb_siblings(&self) -> u32 {
-        const TRAILING_ZEROS: u32 = CompiledTrieNode::MASK_NB_SIBLINGS.trailing_zeros();
-        (self.nb_siblings_with_flags & CompiledTrieNode::MASK_NB_SIBLINGS) >> TRAILING_ZEROS
+        self.nb_siblings_with_flags & CompiledTrieNode::MASK_NB_SIBLINGS
     }
 }
 

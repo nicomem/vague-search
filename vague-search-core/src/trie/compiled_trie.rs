@@ -48,7 +48,7 @@ impl CompiledTrie<'_> {
     /// Return the root node and its siblings.
     /// Only return None when the nodes array is empty.
     pub fn get_root_siblings(&self) -> Option<&[CompiledTrieNode]> {
-        if self.nodes().is_empty() {
+        if self.nodes.is_empty() {
             None
         } else {
             // SAFETY: Not empty, condition checked just before
@@ -88,6 +88,15 @@ impl CompiledTrie<'_> {
         }
     }
 
+    // Get a single char beginning at the given index.
+    pub unsafe fn get_char_unchecked(&self, index: IndexChar) -> char {
+        self.chars
+            .get_unchecked(usize::from(index)..)
+            .chars()
+            .next()
+            .unwrap_or_else(|| std::hint::unreachable_unchecked())
+    }
+
     /// Get a range of nodes corresponding to a [RangeNode](crate::RangeNode).
     pub fn get_range(&self, start: IndexRange, end: IndexRange) -> &RangeSlice {
         if start >= end {
@@ -100,6 +109,16 @@ impl CompiledTrie<'_> {
                     .get_unchecked(usize::from(start)..usize::from(end))
             }
         }
+    }
+
+    /// Get a single element of a range beginning at the given [IndexRange](IndexRange).
+    /// Does not any bound check.
+    pub unsafe fn get_range_element_unchecked(
+        &self,
+        start: IndexRange,
+        offset: usize,
+    ) -> &RangeElement {
+        self.ranges.get_unchecked(usize::from(start) + offset)
     }
 }
 
