@@ -55,7 +55,7 @@ impl Ord for FoundWord {
         self.dist
             .cmp(&other.dist)
             .then(other.freq.cmp(&self.freq))
-            .then(self.word.cmp(&other.word))
+            .then_with(|| self.word.cmp(&other.word))
     }
 }
 
@@ -404,7 +404,7 @@ fn cmp_min_with_max_dist<'a>(
 fn get_node_children<'a>(
     trie: &'a CompiledTrie,
     iter_elem: &IterationElement,
-) -> &'a [CompiledTrieNode] {
+) -> Option<&'a [CompiledTrieNode]> {
     // Get the index of the node's first child
     let index = match iter_elem.node.node_value() {
         NodeValue::Naive(n) => n.index_first_child,
@@ -417,7 +417,7 @@ fn get_node_children<'a>(
     };
 
     // Get it and its siblings, or return an empty slice if no index (no children)
-    index.map_or(Default::default(), |i| trie.get_siblings(i))
+    index.map(|i| trie.get_siblings(i))
 }
 
 /// Get the last character of the current node.
@@ -540,12 +540,7 @@ pub fn search_approx<'a>(
             &mut result_buffer,
         );
 
-        let children = get_node_children(trie, &iter_elem);
-
-        if children.is_empty() {
-            // If no children, remove its layer and continue with next iteration
-            layer_stack.pop_layer();
-        } else {
+        if let Some(children) = get_node_children(trie, &iter_elem) {
             // If children, compare the minimum distance of the layer with the max_dist
             match cmp_min_with_max_dist(cur_layer, dist_max, &mut equals_buf) {
                 // If it is less, add all children and continue with the next iteration
@@ -615,6 +610,9 @@ pub fn search_approx<'a>(
                     layer_stack.pop_layer();
                 }
             }
+        } else {
+            // If no children, remove its layer and continue with next iteration
+            layer_stack.pop_layer();
         }
     }
 

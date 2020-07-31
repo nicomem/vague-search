@@ -1,4 +1,4 @@
-use std::num::NonZeroU32;
+use std::{cmp::Ordering, num::NonZeroU32};
 use vague_search_core::{CompiledTrie, CompiledTrieNode, IndexNodeNonZero, NodeValue};
 
 /// Compare the node characters with the character.
@@ -6,30 +6,67 @@ use vague_search_core::{CompiledTrie, CompiledTrieNode, IndexNodeNonZero, NodeVa
 /// If the character is before the node's range, return Greater.
 pub fn compare_keys(
     trie_node: &CompiledTrieNode,
+    node_value: &NodeValue,
     character: char,
     trie: &CompiledTrie,
-) -> std::cmp::Ordering {
-    match trie_node.node_value() {
+) -> Ordering {
+    match node_value {
         NodeValue::Naive(node) => node.character.cmp(&character),
         NodeValue::Patricia(_) => {
             // SAFETY: Safe because in a patricia node
             let pat_range = unsafe { &trie_node.patricia_range() };
-            trie.get_chars(pat_range.start, pat_range.end)
-                .chars()
-                .next()
-                .unwrap()
-                .cmp(&character)
+            let pat_first_char = unsafe { trie.get_char_unchecked(pat_range.start) };
+            pat_first_char.cmp(&character)
         }
         NodeValue::Range(node) => {
-            let ranges = trie.get_range(node.start_index, node.end_index);
+            let range_len = u32::from(node.end_index) - u32::from(node.start_index);
             if node.first_char > character {
-                std::cmp::Ordering::Greater
-            } else if node.first_char as usize + ranges.len() < character as usize {
-                std::cmp::Ordering::Less
+                Ordering::Greater
+            } else if node.first_char as u32 + range_len <= character as u32 {
+                Ordering::Less
             } else {
-                std::cmp::Ordering::Equal
+                Ordering::Equal
             }
         }
+    }
+}
+
+fn search_child<'a>(
+    children: &'a [CompiledTrieNode],
+    first_char: char,
+    trie: &CompiledTrie,
+) -> Option<(&'a CompiledTrieNode, NodeValue<'a>)> {
+    // Custom binsearch, derived from the std implementation
+    // See https://doc.rust-lang.org/std/primitive.slice.html#method.binary_search_by
+    let mut size = children.len();
+    let mut base = 0usize;
+    while size > 1 {
+        let half = size / 2;
+        let mid = base + half;
+
+        let trie_node = unsafe { children.get_unchecked(mid) };
+        let node_value = trie_node.node_value();
+
+        // mid is always in [0, size), that means mid is >= 0 and < size.
+        // mid >= 0: by definition
+        // mid < size: mid = size / 2 + size / 4 + size / 8 ...
+        match compare_keys(trie_node, &node_value, first_char, trie) {
+            Ordering::Less => base = mid,
+            Ordering::Equal => return Some((trie_node, node_value)),
+            Ordering::Greater => {}
+        }
+        size -= half;
+    }
+
+    let trie_node = unsafe { children.get_unchecked(base) };
+    let node_value = trie_node.node_value();
+
+    // base is always in [0, size) because base <= mid.
+    let cmp = compare_keys(trie_node, &node_value, first_char, trie);
+    if cmp == Ordering::Equal {
+        Some((trie_node, node_value))
+    } else {
+        None
     }
 }
 
@@ -55,61 +92,45 @@ pub fn search_exact_children<'a>(
         debug_assert_ne!(word.len(), 0);
         let first_char: char = word.chars().next()?;
 
-        let index_child = children
-            .binary_search_by(|node| compare_keys(node, first_char, trie))
-            .ok()?;
-
-        let child = unsafe { children.get_unchecked(index_child) };
-
-        children = match child.node_value() {
-            NodeValue::Naive(node) => {
-                if word.len() == node.character.len_utf8() {
-                    return node.word_freq;
-                }
-                if let Some(index) = node.index_first_child {
-                    word = word.split_at(node.character.len_utf8()).1;
-                    trie.get_siblings(index)
-                } else {
-                    return None;
-                }
-            }
+        let (child, child_value) = search_child(children, first_char, trie)?;
+        let (index_first_child, word_freq, substr_len) = match child_value {
+            NodeValue::Naive(node) => (
+                node.index_first_child,
+                node.word_freq,
+                node.character.len_utf8(),
+            ),
             NodeValue::Patricia(node) => {
                 // SAFETY: Safe because in a patricia node
                 let patricia_range = unsafe { child.patricia_range() };
                 let chars = trie.get_chars(patricia_range.start, patricia_range.end);
-                let lenchar = chars.len();
-                if lenchar > word.len() || !word.starts_with(chars) {
+
+                if !word.starts_with(chars) {
                     return None;
                 }
-                if word.len() == lenchar {
-                    return node.word_freq;
-                }
-                // If no more childs then no more iterations
-                if let Some(index) = node.index_first_child {
-                    // Split word for next iteration
-                    word = word.split_at(lenchar).1;
-                    // Get the siblings for the next iteration
-                    trie.get_siblings(index)
-                } else {
-                    return None;
-                }
+                (node.index_first_child, node.word_freq, chars.len())
             }
             NodeValue::Range(node) => {
-                let range = trie
-                    .get_range(node.start_index, node.end_index)
-                    .get(first_char as usize - node.first_char as usize)?;
-                if word.len() == first_char.len_utf8() {
-                    return range.word_freq;
-                }
-                // Get next child index
-                if let Some(index) = range.index_first_child {
-                    word = word.split_at(first_char.len_utf8()).1;
-                    trie.get_siblings(index)
-                } else {
-                    return None;
-                }
+                // SAFFETY: node.first_char is in the range (checked inside search_child)
+                let range = unsafe {
+                    trie.get_range_element_unchecked(
+                        node.start_index,
+                        first_char as usize - node.first_char as usize,
+                    )
+                };
+
+                (
+                    range.index_first_child,
+                    range.word_freq,
+                    first_char.len_utf8(),
+                )
             }
+        };
+
+        word = &word[substr_len..];
+        if word.is_empty() {
+            return word_freq;
         }
+        children = trie.get_siblings(index_first_child?);
     }
 }
 
