@@ -451,12 +451,20 @@ fn check_potential_damerau<'a>(
     let first_equal_diag_i = max(2, equals[0]) - 2;
     let last_equal_diag_i = max(2, *equals.last().unwrap()) - 2;
     let slice_to_check = &last_layer[first_equal_diag_i..=last_equal_diag_i];
+
+    let mut chars = word.chars();
+    let mut cur_i = 0;
+
     let mut chars_to_check = slice_to_check
         .iter()
         .enumerate()
         .filter(|(_, &d)| d < dist_max)
         .map(|(i, _)| first_equal_diag_i + i)
-        .filter_map(|i| word.chars().nth(i));
+        .filter_map(|i| {
+            let c = chars.nth(i - cur_i);
+            cur_i = i;
+            c
+        });
 
     let char_in_children = |c| {
         children
