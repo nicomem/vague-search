@@ -1,6 +1,9 @@
 use std::num::NonZeroU32;
 use vague_search_core::{CompiledTrie, CompiledTrieNode, IndexNodeNonZero, NodeValue};
 
+/// Compare the node characters with the character.
+/// If the character is in the node's range, return Equal.
+/// If the character is before the node's range, return Greater.
 pub fn compare_keys(
     trie_node: &CompiledTrieNode,
     character: char,
