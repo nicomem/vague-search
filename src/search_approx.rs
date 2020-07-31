@@ -1,4 +1,4 @@
-use crate::{layer_stack::LayerStack, search_exact::search_exact_children};
+use crate::{layer_stack::LayerStack, search_exact::{compare_keys, search_exact_children}};
 use std::{
     cmp::{max, min, Ordering},
     num::NonZeroU32,
@@ -434,6 +434,27 @@ fn get_current_last_char(trie: &CompiledTrie, iter_elem: &IterationElement) -> c
     }
 }
 
+/// Checks if a damerau operation might happen
+/// This checks the range in the children of the node
+/// children can't be empty here
+fn check_potential_damerau<'a>(children: &'a [CompiledTrieNode], trie: &'a CompiledTrie, word_i: usize, word: &str, last_char: char) -> bool {
+    // -1 beacause there must be a second letter in the word for a transposition
+    if word_i >= word.len() - 1 {
+        return false;
+    }
+    let mut word_indices = word[word_i..].chars();
+    let char_word_current = word_indices.next().unwrap();
+    let char_word_next = word_indices.next().unwrap();
+
+    if last_char != char_word_next {
+        return false;
+    }
+
+    // Check if the char_word_current is in the range of children, since it's sorted
+    !((compare_keys(&children[0], char_word_current, trie) == std::cmp::Ordering::Less) || 
+    (compare_keys(children.last().unwrap(), char_word_current, trie) == std::cmp::Ordering::Greater))
+}
+
 /// Search for all words in the trie at a given distance (or less) of the query.
 ///
 /// Return a vector of all found words with their respective frequency.
@@ -519,17 +540,19 @@ pub fn search_approx<'a>(
                 // If it is equal, it is now a problem of exact search, which can have
                 // a better optimized algorithm than the approximate search
                 (Ordering::Equal, equals) => {
+                    // Get current word index
+                    let word_i = layer_stack.get_layers_word().len();
+                    // Get the last character of the current node
+                    let last_char = get_current_last_char(trie, &iter_elem);
+
                     let [_, last_layer, _] = layer_stack.fetch_last_3_layers();
 
                     let first_equal_diag_i = max(2, equals[0]) - 2;
                     let last_equal_diag_i = max(2, *equals.last().unwrap()) - 2;
                     let slice_to_check = &last_layer[first_equal_diag_i..=last_equal_diag_i];
-                    let can_transpose = slice_to_check.iter().any(|&c| c < dist_max);
+                    let can_transpose = check_potential_damerau(children, trie, word_i, word, last_char) || slice_to_check.iter().any(|&c| c < dist_max);
 
                     if can_transpose {
-                        // Get the last character of the current node
-                        let last_char = get_current_last_char(trie, &iter_elem);
-
                         // Add all children to the stack and save the last char of their parent
                         push_layer_nodes(iter_stack, children, Some(last_char));
                     } else {

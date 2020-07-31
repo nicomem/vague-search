@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 use vague_search_core::{CompiledTrie, CompiledTrieNode, IndexNodeNonZero, NodeValue};
 
-fn compare_keys(
+pub fn compare_keys(
     trie_node: &CompiledTrieNode,
     character: char,
     trie: &CompiledTrie,
