@@ -88,7 +88,10 @@ impl CompiledTrie<'_> {
         }
     }
 
-    // Get a single char beginning at the given index.
+    /// # Safety
+    /// The index must be valid and the beginning of a substring.
+    ///
+    /// Get a single char beginning at the given index.
     pub unsafe fn get_char_unchecked(&self, index: IndexChar) -> char {
         self.chars
             .get_unchecked(usize::from(index)..)
@@ -111,6 +114,10 @@ impl CompiledTrie<'_> {
         }
     }
 
+    /// # Safety
+    /// The start index must be valid and the beginning of a range.
+    /// The offset must be strictly less than the range length.
+    ///
     /// Get a single element of a range beginning at the given [IndexRange](IndexRange).
     /// Does not any bound check.
     pub unsafe fn get_range_element_unchecked(

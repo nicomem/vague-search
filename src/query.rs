@@ -45,43 +45,67 @@ fn parse_command_line(line: &str) -> Result<(&str, Distance)> {
 }
 
 /// Format the result (word, freq) to JSON and append it to the given buffer.
-fn append_result_to_json(
+fn write_json_result(
     word: &str,
     freq: NonZeroU32,
     dist: Distance,
     mut json_writer: &mut impl Write,
 ) {
-    // Add to the buffer: {"word":"<word>","freq":<freq>,"distance":<dist>}
-    // Do not use format!() to avoid its overhead
-    // Uses raw string literals: https://doc.rust-lang.org/reference/tokens.html#raw-string-literals
-    let r = write!(&mut json_writer, r#"{{"word":"{}","freq":"#, word);
+    // Write: {"word":"<word>","freq":<freq>,"distance":<dist>}
+    // Do not use format!() and such to avoid its overhead
+
+    let r = json_writer.write_all(b"{\"word\":\"");
+    debug_assert!(r.is_ok());
+
+    let r = json_writer.write_all(word.as_bytes());
+    debug_assert!(r.is_ok());
+
+    let r = json_writer.write_all(b"\",\"freq\":");
     debug_assert!(r.is_ok());
 
     let r = itoa::write(&mut json_writer, freq.get());
     debug_assert!(r.is_ok());
 
-    let r = write!(&mut json_writer, r#","distance":"#);
+    let r = json_writer.write_all(b",\"distance\":");
     debug_assert!(r.is_ok());
 
     let r = itoa::write(&mut json_writer, dist);
     debug_assert!(r.is_ok());
 
-    let r = write!(&mut json_writer, "}}");
+    let r = json_writer.write_all(b"}");
+    debug_assert!(r.is_ok());
+}
+
+/// Format the result (word, freq) to JSON and append it to the given buffer.
+fn write_json_result_dist_0(word: &str, freq: NonZeroU32, mut json_writer: &mut impl Write) {
+    // Write: [{"word":"<word>","freq":<freq>,"distance":0}]\n
+    // Do not use format!() and such to avoid its overhead
+
+    let r = json_writer.write_all(b"[{\"word\":\"");
+    debug_assert!(r.is_ok());
+
+    let r = json_writer.write_all(word.as_bytes());
+    debug_assert!(r.is_ok());
+
+    let r = json_writer.write_all(b"\",\"freq\":");
+    debug_assert!(r.is_ok());
+
+    let r = itoa::write(&mut json_writer, freq.get());
+    debug_assert!(r.is_ok());
+
+    let r = json_writer.write_all(b",\"distance\":0}]\n");
     debug_assert!(r.is_ok());
 }
 
 /// Search for a word in the trie and return the result in a JSON representation.
 fn process_search_exact(trie: &CompiledTrie, word: &str, json_writer: &mut impl Write) {
     // Search at a distance 0 and append the formatted result to the JSON buffer
-    let r = write!(json_writer, "[");
-    debug_assert!(r.is_ok());
-
     if let Some(freq) = search_exact(trie, word, None) {
-        append_result_to_json(word, freq, 0, json_writer)
+        write_json_result_dist_0(word, freq, json_writer)
+    } else {
+        let r = json_writer.write_all(b"[]");
+        debug_assert!(r.is_ok());
     }
-
-    let r = writeln!(json_writer, "]");
-    debug_assert!(r.is_ok());
 }
 
 /// Search for all words in the trie at a given distance (or less) of the query
@@ -113,7 +137,7 @@ fn process_search_approx<'a>(
     // Sort the results based on the order defined by FoundWord
     result_buffer.sort_unstable();
 
-    let r = write!(json_writer, "[");
+    let r = json_writer.write_all(b"[");
     debug_assert!(r.is_ok());
 
     let mut first = true;
@@ -121,7 +145,7 @@ fn process_search_approx<'a>(
         // Add comma between elements in the JSON array
         // But there must not be a trailing comma
         if !first {
-            let r = write!(json_writer, ",");
+            let r = json_writer.write_all(b",");
             debug_assert!(r.is_ok());
         }
         first = false;
@@ -130,10 +154,10 @@ fn process_search_approx<'a>(
         let inner_word = std::mem::take(&mut found_word.word);
 
         // Append the formatted result to the JSON buffer
-        append_result_to_json(&inner_word, found_word.freq, found_word.dist, json_writer);
+        write_json_result(&inner_word, found_word.freq, found_word.dist, json_writer);
     }
 
-    let r = writeln!(json_writer, "]");
+    let r = json_writer.write_all(b"]\n");
     debug_assert!(r.is_ok());
 }
 

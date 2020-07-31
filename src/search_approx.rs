@@ -52,7 +52,7 @@ impl Ord for FoundWord {
         self.dist
             .cmp(&other.dist)
             .then(other.freq.cmp(&self.freq))
-            .then(self.word.cmp(&other.word))
+            .then_with(|| self.word.cmp(&other.word))
     }
 }
 
