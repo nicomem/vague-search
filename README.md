@@ -10,9 +10,9 @@ An approximate search engine (project for the text-mining course).
 ## Features
 
 - Fast
-  - 700k qps at distance 0
-  - 8k qps at distance 1
-  - 300 qps at distance 2
+  - 850k qps at distance 0
+  - 4.4k qps at distance 1
+  - 120 qps at distance 2
 - Low memory footprint
   - 30Mo at distance 4
   - 300Mo at distance 10
