@@ -440,7 +440,7 @@ fn get_current_last_char(trie: &CompiledTrie, iter_elem: &IterationElement) -> c
 /// Checks if a damerau operation might happen
 /// This checks the range in the children of the node
 /// children can't be empty here
-fn check_potential_damerau<'a>(
+fn check_potential_damerau(
     trie: &CompiledTrie,
     children: &[CompiledTrieNode],
     last_layer: &[Distance],
