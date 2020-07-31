@@ -462,7 +462,7 @@ fn check_potential_damerau<'a>(
         .map(|(i, _)| first_equal_diag_i + i)
         .filter_map(|i| {
             let c = chars.nth(i - cur_i);
-            cur_i = i;
+            cur_i = i + 1;
             c
         });
 
