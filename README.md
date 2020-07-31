@@ -10,12 +10,12 @@ An approximate search engine (project for the text-mining course).
 ## Features
 
 - Fast
-  - 700k qps at distance 0
-  - 8k qps at distance 1
-  - 300 qps at distance 2
+  - 850k qps at distance 0
+  - 4.4k qps at distance 1
+  - 120 qps at distance 2
 - Low memory footprint
-  - 30Mo at distance 4
-  - 300Mo at distance 10
+  - 20Mo at distance 4
+  - 160Mo at distance 10
 - Compatible with **any** valid UTF-8 words
   - Even [emojis](https://en.wikipedia.org/wiki/Emoji) or [diacritics](https://en.wikipedia.org/wiki/Diacritic).
 - Optimized for single-core usage
@@ -43,7 +43,7 @@ An example list of shell commands to build and run the project:
 echo "approx 0 test" | ./TextMiningApp /path/to/dict.bin
 echo "approx 1 test" | ./TextMiningApp /path/to/dict.bin
 echo "approx 2 test" | ./TextMiningApp /path/to/dict.bin
-echo "approx 0 test\napprox 1 test\napprox 2 test\napprox 3 test\napprox 4 test" | ./TextMiningApp /path/to/dict.bin
+echo -e "approx 0 test\napprox 1 test\napprox 2 test\napprox 3 test\napprox 4 test" | ./TextMiningApp /path/to/dict.bin
 cat test.txt | ./TextMiningApp /path/to/dict.bin
 ```
 

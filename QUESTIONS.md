@@ -166,13 +166,13 @@ Au regard de nos résultats sur le programme principal, la vitesse est un des po
 
 |               | Réference | Vague search |
 |---------------|:---------:|:------------:|
-| distance = 0  |    370k   |     700k     |
-| distance = 1  |    8.8k   |     3.7k     |
-| distance = 2  |    320    |     110      |
-| distance = 3  |     22    |      11      |
-| distance = 4  |    1.7    |       3      |
-| distance = 5  |    0.3    |     1.5      |
-| distance = 10 |    N/A    |     0.2      |
+| distance = 0  |    370k   |     850k     |
+| distance = 1  |     10k   |     4.4k     |
+| distance = 2  |    320    |     120      |
+| distance = 3  |     22    |      13      |
+| distance = 4  |    1.7    |     3.8      |
+| distance = 5  |    0.3    |     2.0      |
+| distance = 10 |    N/A    |     0.5      |
 
 ### Tableau des performances (Utilisation mémoire)
 
