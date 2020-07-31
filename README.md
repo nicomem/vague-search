@@ -43,7 +43,7 @@ An example list of shell commands to build and run the project:
 echo "approx 0 test" | ./TextMiningApp /path/to/dict.bin
 echo "approx 1 test" | ./TextMiningApp /path/to/dict.bin
 echo "approx 2 test" | ./TextMiningApp /path/to/dict.bin
-echo "approx 0 test\napprox 1 test\napprox 2 test\napprox 3 test\napprox 4 test" | ./TextMiningApp /path/to/dict.bin
+echo -e "approx 0 test\napprox 1 test\napprox 2 test\napprox 3 test\napprox 4 test" | ./TextMiningApp /path/to/dict.bin
 cat test.txt | ./TextMiningApp /path/to/dict.bin
 ```
 
