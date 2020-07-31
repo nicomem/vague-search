@@ -168,9 +168,9 @@ Au regard de nos résultats sur le programme principal, la vitesse est un des po
 |---------------|:---------:|:------------:|
 | distance = 0  |    370k   |     850k     |
 | distance = 1  |     10k   |     4.4k     |
-| distance = 2  |    320    |     120      |
-| distance = 3  |     22    |      13      |
-| distance = 4  |    1.7    |     3.8      |
+| distance = 2  |    320    |     130      |
+| distance = 3  |     22    |      15      |
+| distance = 4  |    1.7    |     4.2      |
 | distance = 5  |    0.3    |     2.0      |
 | distance = 10 |    N/A    |     0.5      |
 

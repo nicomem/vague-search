@@ -12,7 +12,7 @@ An approximate search engine (project for the text-mining course).
 - Fast
   - 850k qps at distance 0
   - 4.4k qps at distance 1
-  - 120 qps at distance 2
+  - 130 qps at distance 2
 - Low memory footprint
   - 20Mo at distance 4
   - 160Mo at distance 10
