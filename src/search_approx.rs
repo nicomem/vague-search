@@ -1,4 +1,7 @@
-use crate::{layer_stack::LayerStack, search_exact::{compare_keys, search_exact_children}};
+use crate::{
+    layer_stack::LayerStack,
+    search_exact::{compare_keys, search_exact_children},
+};
 use std::{
     cmp::{max, min, Ordering},
     num::NonZeroU32,
@@ -437,7 +440,13 @@ fn get_current_last_char(trie: &CompiledTrie, iter_elem: &IterationElement) -> c
 /// Checks if a damerau operation might happen
 /// This checks the range in the children of the node
 /// children can't be empty here
-fn check_potential_damerau<'a>(children: &'a [CompiledTrieNode], trie: &'a CompiledTrie, word_i: usize, word: &str, last_char: char) -> bool {
+fn check_potential_damerau<'a>(
+    children: &'a [CompiledTrieNode],
+    trie: &'a CompiledTrie,
+    word_i: usize,
+    word: &str,
+    last_char: char,
+) -> bool {
     // -1 beacause there must be a second letter in the word for a transposition
     if word_i >= word.len() - 1 {
         return false;
@@ -451,8 +460,9 @@ fn check_potential_damerau<'a>(children: &'a [CompiledTrieNode], trie: &'a Compi
     }
 
     // Check if the char_word_current is in the range of children, since it's sorted
-    !((compare_keys(&children[0], char_word_current, trie) == std::cmp::Ordering::Less) || 
-    (compare_keys(children.last().unwrap(), char_word_current, trie) == std::cmp::Ordering::Greater))
+    !((compare_keys(&children[0], char_word_current, trie) == std::cmp::Ordering::Less)
+        || (compare_keys(children.last().unwrap(), char_word_current, trie)
+            == std::cmp::Ordering::Greater))
 }
 
 /// Search for all words in the trie at a given distance (or less) of the query.
@@ -550,7 +560,9 @@ pub fn search_approx<'a>(
                     let first_equal_diag_i = max(2, equals[0]) - 2;
                     let last_equal_diag_i = max(2, *equals.last().unwrap()) - 2;
                     let slice_to_check = &last_layer[first_equal_diag_i..=last_equal_diag_i];
-                    let can_transpose = check_potential_damerau(children, trie, word_i, word, last_char) || slice_to_check.iter().any(|&c| c < dist_max);
+                    let can_transpose =
+                        check_potential_damerau(children, trie, word_i, word, last_char)
+                            || slice_to_check.iter().any(|&c| c < dist_max);
 
                     if can_transpose {
                         // Add all children to the stack and save the last char of their parent
